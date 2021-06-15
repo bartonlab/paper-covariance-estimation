@@ -1,0 +1,32 @@
+# Local files
+__pycache__
+.ipynb_checkpoints
+data/HIV/seq-times.dat
+DMS/
+drafts/
+figures/old/
+figures/revision/
+old/
+grant/
+slides/
+src/MPL/.dirstamp
+src/MPL/.deps/
+src/MPL/*.o
+src/MPL/jobs/
+VL/
+VRC26/
+dms-analysis.ipynb
+figures-bkup.py
+figures_grant.py
+figures_slides.py
+figures-grant.ipynb
+figures-slides.ipynb
+src-Matlab-data.tar.gz
+src-MPL-HIV.tar.gz
+src-wfsim-data.tar.gz
+supplemental-analysis.ipynb
+supplemental-figures.ipynb
+
+# Directories with large files
+src/MPL/HIV
+src/wfsim/data
