@@ -45,13 +45,14 @@ def processStandard(sequences, frequencies, times, q, totalCov, covAtEachTime=Fa
         elif intCovTimes and times[k] <= intCovTimes[covTimeIndex]:
             if k == len(sequences) - 1:
                 # There is no next time point, but the projected next time point will pass intCovTimes[covTimeIndex]
-                if 2 * times[k] - times[k - 1] > intCovTimes[covTimeIndex]:
+                while covTimeIndex < len(intCovTimes) and 2 * times[k] - times[k - 1] > intCovTimes[covTimeIndex]:
                     intCovAtTimes[covTimeIndex] = deepcopy(totalCov)
                     covTimeIndex += 1
             elif times[k + 1] > intCovTimes[covTimeIndex]:
                 # Next time point will pass intCovTimes[covTimeIndex]
-                intCovAtTimes[covTimeIndex] = deepcopy(totalCov)
-                covTimeIndex += 1
+                while times[k + 1] > intCovTimes[covTimeIndex]:
+                    intCovAtTimes[covTimeIndex] = deepcopy(totalCov)
+                    covTimeIndex += 1
         if not k == len(sequences) - 1:
             lastp1 = p1
             lastp2 = p2
@@ -126,7 +127,7 @@ def updateCovarianceIntegrate(dg, p1_0, p2_0, p1_1, p2_1, totalCov):
 
 def computeD(traj, times, mu):
     """Computes the 'Dx' term in MPL inference."""
-    
+
     T = len(times)
     tStart, tEnd = 0, T - 1
     D = traj[tEnd] - traj[tStart] - mu * np.sum([(times[t + 1] - times[t]) * (1 - 2 * traj[t]) for t in range(tStart, tEnd)], axis=0)

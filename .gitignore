@@ -3,6 +3,12 @@ __pycache__
 .ipynb_checkpoints
 test_data
 data.zip
+src/test_jobs
+src/test_estimate.py
+test_figures.ipynb
+test_simulation-analysis.ipynb
+test_individual_analysis.ipynb
 
 # Directories with large files
 data
+test_data

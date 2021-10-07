@@ -32,8 +32,8 @@ def main(verbose=False):
                         help='list of sampling depths')
     parser.add_argument('--record',         type=int,       default=[1, 3, 5, 10], nargs='*',
                         help='list of sampling time intervals')
-    parser.add_argument('--linear',         type=int,       default=[5, 10, 20, 50, 100, 300], nargs='*',
-                        help='list of linear shrinkage strengths')
+    parser.add_argument('--linear',         type=int,       default=[1, 5, 10, 20, 50, 100, 300], nargs='*',
+                        help='list of linear shrinkage strengths/sampling time intervals, e.g., interval=5, linear=5 ==> strength=25')
     parser.add_argument('--gamma',          type=int,       default=[5e-5, 5e-4, 5e-3, 5e-2, 5e-1, 1], nargs='*',
                         help='list of non-linear shrinkage parameter choices')
     parser.add_argument('--loss',           type=str,       nargs='*',
@@ -91,7 +91,7 @@ def main(verbose=False):
     print(f'truncate = {truncate}\nwindow = {window}\n')
 
     common_shape = (num_selections, num_trials, len(sample), len(record))
-    combine_shape = (num_selections, len(sample), len(record))
+    combine_shape = (num_selections, num_trials, len(sample), len(record))
     cov_shape = common_shape + (L, L)
     dcorr_shape = common_shape + (len(loss), len(gamma), L, L)
 
@@ -105,6 +105,10 @@ def main(verbose=False):
     int_dcorr_reg = np.zeros(dcorr_shape, dtype=float)
     int_dcov_dcorr_reg = np.zeros(dcorr_shape, dtype=float)
     D = np.zeros(common_shape + (L, ), dtype=float)
+
+    # spearmanr correlation, and MAE error between estimated and true covariance
+    spearmanr_cov = np.zeros(common_shape + (2, ), dtype=float)
+    error_cov = np.zeros(common_shape + (2, ), dtype=float)
 
     # 4 basic methods without further regularization: SL, MPL, est, est(uncalibrated)
     num_basic = 4
@@ -165,52 +169,40 @@ def main(verbose=False):
                         return
 
                     int_corr[s, n, p, q] = computeCorrelation(int_cov[s, n, p, q])
-                    int_cov_combine = np.mean(int_cov[s, :, p, q], axis=0)
-                    int_corr_combine = np.mean(int_corr[s, :, p, q], axis=0)
 
                     # SL matrix: ignoring all covariances; Keep only variances
                     for k in range(L):
                         int_cov_SL[s, n, p, q, k, k] = int_cov[s, n, p, q, k, k]
-                    int_cov_SL_combine = np.mean(int_cov_SL[s, :, p, q], axis=0)
 
                     # estimated integrated covariance
-                    int_dcov[s, n, p, q] = estimateIntegratedCovarianceMatrix(traj, window, population=N)
+                    int_dcov[s, n, p, q] = estimateIntegratedCovarianceMatrix(traj, times, window, population=N)
                     int_dcorr[s, n, p, q] = computeCorrelation(int_dcov[s, n, p, q])
-                    int_dcov_combine = np.mean(int_dcov[s, :, p, q], axis=0)
-                    int_dcorr_combine = computeCorrelation(int_dcov_combine)
 
                     # estimated integrated covariance (uncalibrated)
-                    int_dcov_uncalibrated[s, n, p, q]= estimateIntegratedCovarianceMatrix(traj, window, population=N, calibration=False)
-                    int_dcov_uncalibrated_combine = np.mean(int_dcov_uncalibrated[s, :, p, q], axis=0)
+                    int_dcov_uncalibrated[s, n, p, q]= estimateIntegratedCovarianceMatrix(traj, times, window, population=N, calibration=False)
+
+                    # performance on estimating the covariance
+                    (spearmanr_cov[s, n, p, q, 0], error_cov[s, n, p, q, 0]) = computePerformance(np.ndarray.flatten(int_cov[s, n, p, q]), np.ndarray.flatten(int_dcov[s, n, p, q]))
+                    (spearmanr_cov[s, n, p, q, 1], error_cov[s, n, p, q, 1]) = computePerformance(np.ndarray.flatten(int_cov[s, n, p, q]), np.ndarray.flatten(int_dcov_uncalibrated[s, n, p, q]))
 
                     # Dx term in MPL inference
                     D[s, n, p, q] = MPL.computeD(traj, times, mu)
-                    D_combine = np.mean(D[s, :, p, q], axis=0)
 
                     # basic methods: SL, MPL, est, est(uncalibrated)
                     cov_list = [int_cov_SL[s, n, p, q], int_cov[s, n, p, q], int_dcov[s, n, p, q], int_dcov_uncalibrated[s, n, p, q]]
-                    cov_combine_list = [int_cov_SL_combine, int_cov_combine, int_dcov_combine, int_dcov_uncalibrated_combine]
                     for i in range(num_basic):
                         selections_basic[s, n, p, q, i] = MPL.inferSelection(cov_list[i], D[s, n, p, q], 1 * IdentityMatrix)
-                        selections_basic_combine[s, p, q, i] = MPL.inferSelection(cov_combine_list[i], D_combine, 1 * IdentityMatrix)
                         (spearmanr_basic[s, n, p, q, i],
                          error_basic[s, n, p, q, i]) = computePerformance(selections_basic[s, n, p, q, i], selections[s])
-                        (spearmanr_basic_combine[s, p, q, i],
-                         error_basic_combine[s, p, q, i]) = computePerformance(selections_basic_combine[s, p, q, i], selections[s])
 
                     # Linear shrinkage on integrated covariance
                     for r in range(len(linear)):
-                        selections_linear[s, n, p, q, r] = MPL.inferSelection(int_dcov[s, n, p, q], D[s, n, p, q], linear[r] * IdentityMatrix)
-                        selections_linear_combine[s, p, q, r] = MPL.inferSelection(int_dcov_combine, D_combine, linear[r] * IdentityMatrix)
+                        selections_linear[s, n, p, q, r] = MPL.inferSelection(int_dcov[s, n, p, q], D[s, n, p, q], record[q] * linear[r] * IdentityMatrix)
                         (spearmanr_linear[s, n, p, q, r],
                          error_linear[s, n, p, q, r]) = computePerformance(selections_linear[s, n, p, q, r], selections[s])
-                        (spearmanr_linear_combine[s, p, q, r],
-                         error_linear_combine[s, p, q, r]) = computePerformance(selections_linear_combine[s, p, q, r], selections[s])
 
                     # Non-linear shrinkage on integrated correlation matrix
                     multiplier_corr_to_cov = computeCorrToCovMultiplier(int_dcov[s, n, p, q])
-                    multiplier_corr_to_cov_combine = computeCorrToCovMultiplier(int_dcov_combine)
-
                     for l in range(len(loss)):
                         for g in range(len(gamma)):
                             int_dcorr_reg[s, n, p, q, l, g] = shrinkCorrelation(int_dcorr[s, n, p, q], l, gamma[g])
@@ -221,23 +213,52 @@ def main(verbose=False):
                             (spearmanr_dcorr[s, n, p, q, l, g],
                              error_dcorr[s, n, p, q, l, g]) = computePerformance(selections_dcorr[s, n, p, q, l, g], selections[s])
 
+        # Combining multiple replicates
+        for n in range(num_trials):
+            for p in range(len(sample)):
+                for q in range(len(record)):
+                    trials_sampled = np.random.choice(np.arange(num_trials), size=n + 1, replace=False)
+                    int_cov_combine = np.mean(int_cov[s, trials_sampled, p, q], axis=0)
+                    int_corr_combine = np.mean(int_corr[s, trials_sampled, p, q], axis=0)
+                    int_cov_SL_combine = np.mean(int_cov_SL[s, trials_sampled, p, q], axis=0)
+                    int_dcov_combine = np.mean(int_dcov[s, trials_sampled, p, q], axis=0)
+                    int_dcorr_combine = computeCorrelation(int_dcov_combine)
+                    int_dcov_uncalibrated_combine = np.mean(int_dcov_uncalibrated[s, trials_sampled, p, q], axis=0)
+                    D_combine = np.mean(D[s, trials_sampled, p, q], axis=0)
+                    cov_combine_list = [int_cov_SL_combine, int_cov_combine, int_dcov_combine, int_dcov_uncalibrated_combine]
+
+                    # basic methods: SL, MPL, est, est(uncalibrated)
+                    for i in range(num_basic):
+                        selections_basic_combine[s, n, p, q, i] = MPL.inferSelection(cov_combine_list[i], D_combine, 1 * IdentityMatrix)
+                        (spearmanr_basic_combine[s, n, p, q, i],
+                         error_basic_combine[s, n, p, q, i]) = computePerformance(selections_basic_combine[s, n, p, q, i], selections[s])
+
+                    # Linear shrinkage on integrated covariance
+                    for r in range(len(linear)):
+                        selections_linear_combine[s, n, p, q, r] = MPL.inferSelection(int_dcov_combine, D_combine, record[q] * linear[r] * IdentityMatrix)
+                        (spearmanr_linear_combine[s, n, p, q, r],
+                         error_linear_combine[s, n, p, q, r]) = computePerformance(selections_linear_combine[s, n, p, q, r], selections[s])
+
+                    # Non-linear shrinkage on integrated correlation matrix
+                    multiplier_corr_to_cov_combine = computeCorrToCovMultiplier(int_dcov_combine)
+                    for l in range(len(loss)):
+                        for g in range(len(gamma)):
                             # There are two possible ways to combine replicates with non-linear shrinkage regularization.
                             # Below is the 1st way: regularize the mean of replicates.
                             int_dcorr_reg_combine = shrinkCorrelation(int_dcorr_combine, l, gamma[g])
-                            int_dcov_dcorr_reg_combine = np.linalg.multi_dot([multiplier_corr_to_cov_combine,
-                                                                              int_dcorr_reg_combine,
-                                                                              multiplier_corr_to_cov_combine])
+                            int_dcov_dcorr_reg_combine = np.linalg.multi_dot([multiplier_corr_to_cov_combine, int_dcorr_reg_combine, multiplier_corr_to_cov_combine])
                             # Below is the 2nd way: regularize each replicate individually, then take their average.
                             # int_dcov_dcorr_reg_combine = np.mean(int_dcov_dcorr_reg[s, :, p, q, l, g], axis=0)
-                            selections_dcorr_combine[s, p, q, l, g] = MPL.inferSelection(int_dcov_dcorr_reg_combine,
-                                                                                         D_combine, 1 * IdentityMatrix)
-                            (spearmanr_dcorr_combine[s, p, q, l, g],
-                             error_dcorr_combine[s, p, q, l, g]) = computePerformance(selections_dcorr_combine[s, p, q, l, g], selections[s])
+                            selections_dcorr_combine[s, n, p, q, l, g] = MPL.inferSelection(int_dcov_dcorr_reg_combine, D_combine, 1 * IdentityMatrix)
+                            (spearmanr_dcorr_combine[s, n, p, q, l, g],
+                             error_dcorr_combine[s, n, p, q, l, g]) = computePerformance(selections_dcorr_combine[s, n, p, q, l, g], selections[s])
+
 
     selections_dic   = {'selections_basic': selections_basic, 'selections_basic_combine': selections_basic_combine,
                         'selections_linear': selections_linear, 'selections_linear_combine': selections_linear_combine,
                         'selections_dcorr': selections_dcorr, 'selections_dcorr_combine': selections_dcorr_combine}
-    performances_dic = {'spearmanr_basic': spearmanr_basic, 'spearmanr_basic_combine': spearmanr_basic_combine,
+    performances_dic = {'spearmanr_cov': spearmanr_cov, 'error_cov': error_cov,
+                        'spearmanr_basic': spearmanr_basic, 'spearmanr_basic_combine': spearmanr_basic_combine,
                         'spearmanr_linear': spearmanr_linear, 'spearmanr_linear_combine': spearmanr_linear_combine,
                         'spearmanr_dcorr': spearmanr_dcorr, 'spearmanr_dcorr_combine': spearmanr_dcorr_combine,
                         'error_basic': error_basic, 'error_basic_combine': error_basic_combine,
@@ -249,9 +270,12 @@ def main(verbose=False):
                         'int_dcov': int_dcov[:, :, sample_selected, record_selected],
                         'int_dcov_uncalibrated': int_dcov_uncalibrated[:, :, sample_selected, record_selected],
                         'int_dcov_dcorr_reg': int_dcov_dcorr_reg[:, :, sample_selected, record_selected, loss_selected, gamma_selected]}
+    cov_minimal_dic  = {key: value[:, 0] for key, value in cov_selected_dic.items()}
 
     f = open(arg_list.o + f'_truncate={truncate}_window={window}.npz', 'wb')
-    if arg_list.compact_size:
+    if arg_list.minimal_size:
+        np.savez_compressed(f, **performances_dic, **cov_minimal_dic, size="minimal")
+    elif arg_list.compact_size:
         np.savez_compressed(f, **selections_dic, **performances_dic, size="compact")
     elif arg_list.medium_size:
         np.savez_compressed(f, **selections_dic, **performances_dic, **cov_selected_dic, size="medium")
@@ -295,7 +319,7 @@ def computePerformance(inferred_selection, true_selection):
     """Computes Spearmanr and Frobenius error between inferred and true selections."""
 
     spearmanr, _ = stats.spearmanr(inferred_selection, true_selection)
-    error = np.linalg.norm(inferred_selection - true_selection)
+    error = np.mean(np.absolute(inferred_selection - true_selection))
     return spearmanr, error
 
 
@@ -308,7 +332,7 @@ def computeCorrToCovMultiplier(cov):
     return multiplier
 
 
-def estimateIntegratedCovarianceMatrix(traj, window, population=1000, calibration=True):
+def estimateIntegratedCovarianceMatrix(traj, times, window, population=1000, calibration=True):
     """Estimates integrated covariance matrix from allele frequency trajectories."""
 
     T = len(traj) - 1
@@ -348,7 +372,9 @@ def estimateIntegratedCovarianceMatrix(traj, window, population=1000, calibratio
                     est_cov[t, i, j] *= rescaling_multiplier[i, j]
                     est_cov[t, j, i] = est_cov[t, i, j]
 
-    int_est_cov = np.sum(est_cov, axis=0)
+    int_est_cov = np.zeros((L, L), dtype=float)
+    for t in range(T):
+        int_est_cov += (times[t + 1] - times[t]) * est_cov[t]
     return int_est_cov
 
 

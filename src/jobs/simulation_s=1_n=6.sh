@@ -8,6 +8,6 @@
 #SBATCH --job-name="simulation_s=1_n=6"
 date
 source activate env_pySCA
-python ../Wright-Fisher.py -N 1000 -L 50 -T 700 -i ../../data/initial/initial.npz -s ../../data/selection/selection_1.npy -o ../../data/simulation_output/simulation_output_s=1_n=6 --mu 0.001
+python ../Wright-Fisher.py -N 1000 -L 50 -T 700 -i ../../src/initial/initial.npz -s ../../src/selection/selection_1.npy -o ../../data/simulation_output/simulation_output_s=1_n=6 --mu 0.001
 
 date
