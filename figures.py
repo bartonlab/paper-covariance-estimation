@@ -33,10 +33,10 @@ num_trials = 20  # for each set of selection coefficients, we simulated for 20 t
 NUM_BASIC_METHODS = 3  # SL, est and MPL methods
 SAMPLE = [1000, 500, 100, 50, 10]  # sampling depth options when subsampling
 RECORD = [1, 3, 5, 10]  # sampling time interval options when subsampling
-LINEAR = [5, 10, 20, 50, 100, 300]  # linear shrinkage strengths that we tested
+LINEAR = [1, 5, 10, 20, 50, 100, 300]  # linear shrinkage strengths that we tested
 GAMMA = [5e-5, 5e-4, 5e-3, 5e-2, 5e-1, 1]  # non-linear shrinkage parameter choices that we tested
 TRUNCATE = [200, 300, 400, 500, 600, 700]  # truncate options to test performance using different lengths of data
-WINDOW = [0, 1, 2, 3, 4, 5, 10]  # window choices that we tested
+WINDOW = [0, 1, 2, 3, 4, 5, 10, 20, 40, 80, 160]  # window choices that we tested
 # loss functions for non-linear shrinkage that we tested
 LOSS = ['Fro | $\hat{C}-C$', 'Fro | $\hat{C}^{-1}-C^{-1}$', 'Fro | $C^{-1}\hat{C}-I$',
         'Fro | $\hat{C}^{-1}C-I$', 'Fro | $\hat{C}^{-1/2}C\hat{C}^{-1/2}-I$',
@@ -454,89 +454,7 @@ def plot_figure_performance_with_both_regularizations(spearmanr_linear, spearman
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_figure_performance_all_methods(spearmanr_basic, spearmanr_linear, spearmanr_dcorr, truncate_index=5, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_list=LINEAR, linear_selected=2, loss_selected=3, gamma_selected=0, figsize=None, save_file=None):
-    """Plots a figure showing performance with linear and non-lienar shrinkages on correlation matrix, using a particular linear-strength, a particular loss, and a particular gamma, under limited sampling effects."""
-
-    w = DOUBLE_COLUMN #SLIDE_WIDTH
-    goldh = w / 2.3
-    nRow, nCol = 2, 3
-    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
-
-    matrix_SL = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 0], axis=(0, 1))
-    matrix_MPL = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 1], axis=(0, 1))
-    matrix_est = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 2], axis=(0, 1))
-    matrix_est_uncalibrated = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 3], axis=(0, 1))
-    matrix_linear = np.mean(spearmanr_linear[truncate_index, :, :, :, :, linear_selected], axis=(0, 1))
-    matrix_dcorr = np.mean(spearmanr_dcorr[truncate_index, :, :, :, :, loss_selected, gamma_selected], axis=(0, 1))
-
-    plot_data = [matrix_SL, matrix_MPL, matrix_est, matrix_est_uncalibrated, matrix_linear, matrix_dcorr]
-    titles = LABEL_BASIC + [LABEL_LINEAR, LABEL_DCORR]
-    ylabel = 'Number of samples drawn\nat each generation'
-    xlabel = 'Time intervals between sampling ' + r'$\Delta g$' + ' (generation)'
-
-    for i, data in enumerate(plot_data):
-        plt.sca(axes[i//nCol, i%nCol])
-        ax = plt.gca()
-        sns.heatmap(data, **DEF_HEATMAP_KWARGS)
-
-        at_left = (i % nCol == 0)
-        at_bottom = (i // nCol == nRow - 1)
-        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
-        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list if at_bottom else [])
-        # plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
-        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
-        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
-        plt.text(**DEF_SUBLABELPOSITION_1x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-
-    add_shared_label(fig, xlabel=xlabel, ylabel=ylabel, ylabelpad=-1, xlabelpad=-1)
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_1x2, left=0.18, right=0.9)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_figure_MAE_all_methods(error_basic, error_linear, error_dcorr, truncate_index=5, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_list=LINEAR, linear_selected=2, loss_selected=3, gamma_selected=0, figsize=None, save_file=None):
-    """Plots a figure showing performance with linear and non-lienar shrinkages on correlation matrix, using a particular linear-strength, a particular loss, and a particular gamma, under limited sampling effects."""
-
-    w = DOUBLE_COLUMN #SLIDE_WIDTH
-    goldh = w / 2.3
-    nRow, nCol = 2, 3
-    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
-
-    matrix_SL = np.mean(error_basic[truncate_index, :, :, :, :, 0], axis=(0, 1))
-    matrix_MPL = np.mean(error_basic[truncate_index, :, :, :, :, 1], axis=(0, 1))
-    matrix_est = np.mean(error_basic[truncate_index, :, :, :, :, 2], axis=(0, 1))
-    matrix_est_uncalibrated = np.mean(error_basic[truncate_index, :, :, :, :, 3], axis=(0, 1))
-    matrix_linear = np.mean(error_linear[truncate_index, :, :, :, :, linear_selected], axis=(0, 1))
-    matrix_dcorr = np.mean(error_dcorr[truncate_index, :, :, :, :, loss_selected, gamma_selected], axis=(0, 1))
-
-    plot_data = [matrix_SL, matrix_MPL, matrix_est, matrix_est_uncalibrated, matrix_linear, matrix_dcorr]
-    titles = LABEL_BASIC + [LABEL_LINEAR, LABEL_DCORR]
-    ylabel = 'Number of samples drawn\nat each generation'
-    xlabel = 'Time intervals between sampling ' + r'$\Delta g$' + ' (generation)'
-
-    for i, data in enumerate(plot_data):
-        plt.sca(axes[i//nCol, i%nCol])
-        ax = plt.gca()
-        sns.heatmap(data, cmap='GnBu', alpha=0.75, cbar=False, annot=True, annot_kws={"fontsize": 6}, vmin=0, vmax=0.02)
-
-        at_left = (i % nCol == 0)
-        at_bottom = (i // nCol == nRow - 1)
-        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
-        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list if at_bottom else [])
-        # plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
-        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
-        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
-        plt.text(**DEF_SUBLABELPOSITION_1x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-
-    add_shared_label(fig, xlabel=xlabel, ylabel=ylabel, ylabelpad=-1, xlabelpad=-1)
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_1x2, left=0.18, right=0.9)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_figure_performance_combining_multiple_replicates(spearmanr_basic, spearmanr_linear, spearmanr_dcorr, spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_selected=1,  loss_selected=3, gamma_selected=0, plot_regularization=True, save_file=None, ylim=(0.53, 0.97), alpha=0.75):
+def plot_figure_performance_combining_multiple_replicates(spearmanr_basic, spearmanr_linear, spearmanr_dcorr, spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_selected=2,  loss_selected=3, gamma_selected=0, plot_regularization=True, save_file=None, ylim=(0.5, 0.95), alpha=0.75):
     """Plots a figure comparing performances of all methods (SL, est, MPL, linear shrinkage, non-linear shrinkage) using replicates individually, and combining multiple replicates for inference."""
 
     w = SINGLE_COLUMN #SLIDE_WIDTH
@@ -545,12 +463,12 @@ def plot_figure_performance_combining_multiple_replicates(spearmanr_basic, spear
 
     p, q = 0, 0
     plot_data_basic = [np.mean(spearmanr_basic[:, :, :, p, q], axis=(1, 2)),
-                       np.mean(spearmanr_basic_combine[:, :, p, q], axis=(1))]
+                       np.mean(spearmanr_basic_combine[:, :, -1, p, q], axis=(1))]
     plot_data_linear = [np.mean(spearmanr_linear[:, :, :, p, q, linear_selected], axis=(1, 2)),
-                        np.mean(spearmanr_linear_combine[:, :, p, q, linear_selected], axis=(1))]
+                        np.mean(spearmanr_linear_combine[:, :, -1, p, q, linear_selected], axis=(1))]
     plot_data_dcorr = [np.mean(spearmanr_dcorr[:, :, :, p, q, loss_selected, gamma_selected], axis=(1, 2)),
-                       np.mean(spearmanr_dcorr_combine[:, :, p, q, loss_selected, gamma_selected], axis=(1))]
-    yticks = np.linspace(0.55, 0.95, 9)
+                       np.mean(spearmanr_dcorr_combine[:, :, -1, p, q, loss_selected, gamma_selected], axis=(1))]
+    yticks = np.linspace(0.5, 0.9, 5)
     yticklabels = ['%.2f' % (_) for _ in yticks]
 
     for i, data_basic in enumerate(plot_data_basic):
@@ -582,6 +500,72 @@ def plot_figure_performance_combining_multiple_replicates(spearmanr_basic, spear
     add_shared_label(fig, xlabel=xlabel, xlabelpad=-1)
 
     plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_1x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_figure_performance_combining_different_numbers_of_replicates(spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, num_basic=4, truncate_index=None, linear_selected=2, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, loss_selected=3, gamma_selected=0, p=1, min_t=None, max_t=None, max_q=None, ylim=[(0.5, 0.95), (0.5, 0.95)], alpha=0.75, double_column=False, w_h_ratio=1.4, save_file=None):
+    """Plots a figure showing performances combining different numbers of replicates under limited sampling effects."""
+
+    w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
+    goldh = w / w_h_ratio
+    nRow, nCol = 2, 2
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
+
+    if truncate_index is not None:
+        spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine = (spearmanr_basic_combine[truncate_index],
+                                                                                      spearmanr_linear_combine[truncate_index],
+                                                                                      spearmanr_dcorr_combine[truncate_index])
+    # num_basic = 4
+    mean_spearmanr_basic = np.mean(spearmanr_basic_combine, axis=(1))
+    mean_spearmanr_linear = np.mean(spearmanr_linear_combine[:, :, :, :, :, linear_selected], axis=(1))
+    mean_spearmanr_dcorr = np.mean(spearmanr_dcorr_combine[:, :, :, :, :, loss_selected, gamma_selected], axis=(1))
+    number_replicates = np.arange(1, 21)
+    xticks = np.array([1, 5, 10, 15, 20])
+    if double_column:
+        indices = np.arange(len(number_replicates))
+    else:
+        # indices = xticks - 1
+        indices = np.arange(len(number_replicates))[::2]
+
+    if max_t is None:
+        max_t = len(truncate_list) - 1
+    if min_t is None:
+        min_t = 0
+    if max_q is None:
+        max_q = len(record_list) - 1
+    # tq_list = [(0, 0), (max_t, 0), (0, max_q), (max_t, max_q)]
+    tq_list = [(min_t, 0), (min_t, max_q), (max_t, 0), (max_t, max_q)]
+
+    for i, (t, q) in enumerate(tq_list):
+        plt.sca(axes[i // nCol, i % nCol])
+        ax = plt.gca()
+
+        for j in range(num_basic):
+            plt.scatter(number_replicates[indices], mean_spearmanr_basic[t, :, p, q, j][indices], color=COLOR_BASIC[j], label=LABEL_BASIC[j], marker=MARKER_BASIC[j], s=SMALLSIZEDOT, alpha=alpha)
+            plt.plot(number_replicates[indices], mean_spearmanr_basic[t, :, p, q, j][indices], color=COLOR_BASIC[j], linewidth=SIZELINE, alpha=alpha)
+        plt.scatter(number_replicates[indices], mean_spearmanr_linear[t, :, p, q][indices], s=SMALLSIZEDOT, marker=MARKER_LINEAR, color=COLOR_LINEAR, label=LABEL_LINEAR, alpha=alpha)
+        plt.plot(number_replicates[indices], mean_spearmanr_linear[t, :, p, q][indices], color=COLOR_LINEAR, linewidth=SIZELINE, alpha=alpha)
+        plt.scatter(number_replicates[indices], mean_spearmanr_dcorr[t, :, p, q][indices], color=COLOR_DCORR, label=LABEL_DCORR, marker=MARKER_DCORR, s=SMALLSIZEDOT, alpha=alpha)
+        plt.plot(number_replicates[indices], mean_spearmanr_dcorr[t, :, p, q][indices], color=COLOR_DCORR, linewidth=SIZELINE, alpha=alpha)
+
+        at_bottom = (i == 2 or i == 3)
+        at_left = (i == 0 or i == 2)
+        plt.xticks(ticks=xticks, labels=xticks if at_bottom else [])
+        plt.xlabel('Number of replicates' if at_bottom else '', fontsize=SIZELABEL)
+        plt.ylim(ylim[i // nCol])
+        if not at_left:
+            ax.set_yticklabels([])
+        plt.ylabel(r"Spearman's $\rho$" if at_left else '', fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        if i == 2:
+            plt.legend(fontsize=SIZELEGEND, frameon=False)
+        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        plt.title(f"generations={truncate_list[t]}, interval={record_list[q]}", fontsize=SIZELABEL)
+
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
     plt.show()
     if save_file:
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
@@ -696,74 +680,6 @@ def plot_supplementary_figure_performance_with_different_time_window(spearmanr_b
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_additional_figure_performance_under_four_cases(spearmanr_basic, spearmanr_linear, spearmanr_dcorr, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, gamma_selected=0, ylim=(0.63, 0.95), ylabel=r"Spearman's $\rho$", max_p=None, max_q=None, combine=False, uncalibrated=False, alpha=1, save_file=None):
-    """Plots a figure showing performances with different choices of time window."""
-
-    w = DOUBLE_COLUMN
-    goldh = w / 1.4
-    nRow, nCol = 2, 2
-    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
-
-    if max_p is None:
-        max_p = len(sample_list) - 1
-    if max_q is None:
-        max_q = len(record_list) - 1
-    pq_list = [(0, 0), (max_p, 0), (0, max_q), (max_p, max_q)]
-
-    if combine:
-        avg_axis = (1)
-    else:
-        avg_axis = (1, 2)
-
-    mean_spearmanr_basic = np.mean(spearmanr_basic, axis=avg_axis)
-    mean_spearmanr_linear = np.mean(spearmanr_linear, axis=avg_axis)
-    mean_spearmanr_dcorr = np.mean(spearmanr_dcorr, axis=avg_axis)
-
-    for i, (p, q) in enumerate(pq_list):
-        plt.sca(axes[i // nCol, i % nCol])
-        ax = plt.gca()
-
-        # SL and MPL
-        for j in range(2):
-            plt.plot(truncate_list, mean_spearmanr_basic[:, p, q, j], alpha=alpha,
-                     linewidth=SIZELINE, linestyle='dashed', color=COLOR_BASIC[j], label=LABEL_BASIC[j])
-        # est
-        j = 2
-        plt.plot(truncate_list, mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
-                 marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
-
-        if uncalibrated:
-            j = 3
-            plt.plot(truncate_list, mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
-                     marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
-
-        plt.plot(truncate_list, mean_spearmanr_linear[:, p, q], linewidth=SIZELINE, alpha=alpha,
-                 marker=MARKER_LINEAR, markersize=SMALLSIZEDOT - 2, color=COLOR_LINEAR, label=LABEL_LINEAR)
-
-        plt.plot(truncate_list, mean_spearmanr_dcorr[:, p, q], linewidth=SIZELINE, alpha=alpha,
-                 marker=MARKER_DCORR, markersize=SMALLSIZEDOT - 2, color=COLOR_DCORR, label=LABEL_DCORR)
-
-        at_bottom = (i == 2 or i == 3)
-        at_left = (i == 0 or i == 2)
-        plt.xticks(ticks=truncate_list, labels=truncate_list if at_bottom else [])
-        plt.xlabel('Generations of data used' if at_bottom else '', fontsize=SIZELABEL)
-        plt.ylim(ylim)
-        if not at_left:
-            ax.set_yticklabels([])
-        plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
-        ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-        if i == 0:
-            plt.legend(fontsize=SIZELEGEND, frameon=True)
-        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
-
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
 def plot_supplementary_figure_performance_with_without_calibration(spearmanr_basic, error_basic, spearmanr_cov, error_cov, truncate_list=TRUNCATE, save_file=None):
     """Plots a figure showing performances with and without calibration when estimating covariance."""
 
@@ -774,9 +690,9 @@ def plot_supplementary_figure_performance_with_without_calibration(spearmanr_bas
 
     p, q = 0, 0
     # select out est and est(uncalibrated) from all basic methods, and average over all simulations
-    plot_data = [spearmanr_basic[:, :, :, p, q, 2:4], error_basic[:, :, :, p, q, 2:4], spearmanr_cov, error_cov]
+    plot_data = [spearmanr_basic[:, :, :, p, q, 2:4], error_basic[:, :, :, p, q, 2:4], spearmanr_cov[:, :, :, p, q], np.array([error_cov[tr, :, :, p, q] / truncate for tr, truncate in enumerate(truncate_list)])]
     plot_data = [np.mean(_, axis=(1, 2)) for _ in plot_data]
-    ylabels = [r"Spearman's $\rho$", r"Error of inferred selections", r"Spearman's $\rho$", r"Error of estimated covariance"]
+    ylabels = [r"Spearman's $\rho$", r"MAE of inferred selections", r"Spearman's $\rho$", r"MAE of estimated covariance"]
 
     for i, data in enumerate(plot_data):
         plt.sca(axes[i // nCol, i % nCol])
@@ -851,7 +767,158 @@ def plot_supplementary_figure_performance_with_different_loss_gamma(spearmanr_dc
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_additional_figure_performance_combining_replicates_under_limited_sampling(spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, truncate_index=5, linear_selected=1, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, loss_selected=3, gamma_selected=0, nRow=2, nCol=3, w_h_ratio=1, double_column=True, save_file=None):
+def plot_supplementary_figure_MAE_all_methods(error_basic, error_linear, error_dcorr, truncate_index=5, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_list=LINEAR, linear_selected=2, loss_selected=3, gamma_selected=0, figsize=None, save_file=None):
+    """Plots a figure showing performance with linear and non-lienar shrinkages on correlation matrix, using a particular linear-strength, a particular loss, and a particular gamma, under limited sampling effects."""
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / 2.3
+    nRow, nCol = 2, 3
+    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
+
+    matrix_SL = np.mean(error_basic[truncate_index, :, :, :, :, 0], axis=(0, 1))
+    matrix_MPL = np.mean(error_basic[truncate_index, :, :, :, :, 1], axis=(0, 1))
+    matrix_est = np.mean(error_basic[truncate_index, :, :, :, :, 2], axis=(0, 1))
+    matrix_est_uncalibrated = np.mean(error_basic[truncate_index, :, :, :, :, 3], axis=(0, 1))
+    matrix_linear = np.mean(error_linear[truncate_index, :, :, :, :, linear_selected], axis=(0, 1))
+    matrix_dcorr = np.mean(error_dcorr[truncate_index, :, :, :, :, loss_selected, gamma_selected], axis=(0, 1))
+
+    plot_data = [matrix_SL, matrix_MPL, matrix_est, matrix_est_uncalibrated, matrix_linear, matrix_dcorr]
+    titles = LABEL_BASIC + [LABEL_LINEAR, LABEL_DCORR]
+    ylabel = 'Number of samples drawn\nat each generation'
+    xlabel = 'Time intervals between sampling ' + r'$\Delta g$' + ' (generation)'
+
+    for i, data in enumerate(plot_data):
+        plt.sca(axes[i//nCol, i%nCol])
+        ax = plt.gca()
+        sns.heatmap(data, cmap='GnBu', alpha=0.75, cbar=False, annot=True, annot_kws={"fontsize": 6}, vmin=0, vmax=0.02)
+
+        at_left = (i % nCol == 0)
+        at_bottom = (i // nCol == nRow - 1)
+        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
+        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list if at_bottom else [])
+        # plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
+        plt.text(**DEF_SUBLABELPOSITION_1x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    add_shared_label(fig, xlabel=xlabel, ylabel=ylabel, ylabelpad=-1, xlabelpad=-1)
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_1x2, left=0.18, right=0.9)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+############# Additional figures not included in figures.ipynb #############
+
+def plot_additional_figure_performance_under_four_cases(spearmanr_basic, spearmanr_linear, spearmanr_dcorr, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, gamma_selected=0, ylim=(0.63, 0.95), ylabel=r"Spearman's $\rho$", max_p=None, max_q=None, combine=False, uncalibrated=False, alpha=1, save_file=None):
+    """Plots a figure showing performances with different choices of time window."""
+
+    w = DOUBLE_COLUMN
+    goldh = w / 1.4
+    nRow, nCol = 2, 2
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
+
+    if max_p is None:
+        max_p = len(sample_list) - 1
+    if max_q is None:
+        max_q = len(record_list) - 1
+    pq_list = [(0, 0), (max_p, 0), (0, max_q), (max_p, max_q)]
+
+    if combine:
+        avg_axis = (1)
+    else:
+        avg_axis = (1, 2)
+
+    mean_spearmanr_basic = np.mean(spearmanr_basic, axis=avg_axis)
+    mean_spearmanr_linear = np.mean(spearmanr_linear, axis=avg_axis)
+    mean_spearmanr_dcorr = np.mean(spearmanr_dcorr, axis=avg_axis)
+
+    for i, (p, q) in enumerate(pq_list):
+        plt.sca(axes[i // nCol, i % nCol])
+        ax = plt.gca()
+
+        # SL and MPL
+        for j in range(2):
+            plt.plot(truncate_list, mean_spearmanr_basic[:, p, q, j], alpha=alpha,
+                     linewidth=SIZELINE, linestyle='dashed', color=COLOR_BASIC[j], label=LABEL_BASIC[j])
+        # est
+        j = 2
+        plt.plot(truncate_list, mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
+                 marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
+
+        if uncalibrated:
+            j = 3
+            plt.plot(truncate_list, mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
+                     marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
+
+        plt.plot(truncate_list, mean_spearmanr_linear[:, p, q], linewidth=SIZELINE, alpha=alpha,
+                 marker=MARKER_LINEAR, markersize=SMALLSIZEDOT - 2, color=COLOR_LINEAR, label=LABEL_LINEAR)
+
+        plt.plot(truncate_list, mean_spearmanr_dcorr[:, p, q], linewidth=SIZELINE, alpha=alpha,
+                 marker=MARKER_DCORR, markersize=SMALLSIZEDOT - 2, color=COLOR_DCORR, label=LABEL_DCORR)
+
+        at_bottom = (i == 2 or i == 3)
+        at_left = (i == 0 or i == 2)
+        plt.xticks(ticks=truncate_list, labels=truncate_list if at_bottom else [])
+        plt.xlabel('Generations of data used' if at_bottom else '', fontsize=SIZELABEL)
+        plt.ylim(ylim)
+        if not at_left:
+            ax.set_yticklabels([])
+        plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        if i == 0:
+            plt.legend(fontsize=SIZELEGEND, frameon=True)
+        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
+
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_performance_all_methods(spearmanr_basic, spearmanr_linear, spearmanr_dcorr, truncate_index=5, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_list=LINEAR, linear_selected=2, loss_selected=3, gamma_selected=0, figsize=None, save_file=None):
+    """Plots a figure showing performance with linear and non-lienar shrinkages on correlation matrix, using a particular linear-strength, a particular loss, and a particular gamma, under limited sampling effects."""
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / 2.3
+    nRow, nCol = 2, 3
+    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
+
+    matrix_SL = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 0], axis=(0, 1))
+    matrix_MPL = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 1], axis=(0, 1))
+    matrix_est = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 2], axis=(0, 1))
+    matrix_est_uncalibrated = np.mean(spearmanr_basic[truncate_index, :, :, :, :, 3], axis=(0, 1))
+    matrix_linear = np.mean(spearmanr_linear[truncate_index, :, :, :, :, linear_selected], axis=(0, 1))
+    matrix_dcorr = np.mean(spearmanr_dcorr[truncate_index, :, :, :, :, loss_selected, gamma_selected], axis=(0, 1))
+
+    plot_data = [matrix_SL, matrix_MPL, matrix_est, matrix_est_uncalibrated, matrix_linear, matrix_dcorr]
+    titles = LABEL_BASIC + [LABEL_LINEAR, LABEL_DCORR]
+    ylabel = 'Number of samples drawn\nat each generation'
+    xlabel = 'Time intervals between sampling ' + r'$\Delta g$' + ' (generation)'
+
+    for i, data in enumerate(plot_data):
+        plt.sca(axes[i//nCol, i%nCol])
+        ax = plt.gca()
+        sns.heatmap(data, **DEF_HEATMAP_KWARGS)
+
+        at_left = (i % nCol == 0)
+        at_bottom = (i // nCol == nRow - 1)
+        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
+        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list if at_bottom else [])
+        # plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
+        plt.text(**DEF_SUBLABELPOSITION_1x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    add_shared_label(fig, xlabel=xlabel, ylabel=ylabel, ylabelpad=-1, xlabelpad=-1)
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_1x2, left=0.18, right=0.9)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_performance_combining_replicates_under_limited_sampling(spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, truncate_index=5, linear_selected=2, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, loss_selected=3, gamma_selected=0, nRow=2, nCol=3, w_h_ratio=1, double_column=True, save_file=None):
     """Plots a figure showing performances combining multiple replicates under limited sampling effects."""
 
     w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
@@ -898,7 +965,7 @@ def plot_additional_figure_performance_combining_replicates_under_limited_sampli
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_additional_figure_performance_combining_different_numbers_of_replicates(spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, num_basic=4, truncate_index=None, linear_selected=1, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, loss_selected=3, gamma_selected=0, min_p=None, max_p=None, max_q=None, ylim=(0.5, 0.95), alpha=0.75, double_column=True, w_h_ratio=1.4, save_file=None):
+def plot_additional_figure_performance_combining_different_numbers_of_replicates(spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, num_basic=4, truncate_index=None, linear_selected=2, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, loss_selected=3, gamma_selected=0, min_p=None, max_p=None, max_q=None, ylim=(0.5, 0.95), alpha=0.75, double_column=True, w_h_ratio=1.4, save_file=None):
     """Plots a figure showing performances combining different numbers of replicates under limited sampling effects."""
 
     w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
@@ -951,72 +1018,6 @@ def plot_additional_figure_performance_combining_different_numbers_of_replicates
             plt.legend(fontsize=SIZELEGEND, frameon=True)
         plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
         plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
-
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_additional_figure_performance_combining_different_numbers_of_replicates_at_different_lengths(spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine, num_basic=4, truncate_index=None, linear_selected=1, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, loss_selected=3, gamma_selected=0, p=1, min_t=None, max_t=None, max_q=None, ylim=[(0.5, 0.95), (0.5, 0.95)], alpha=0.75, double_column=True, w_h_ratio=1.4, save_file=None):
-    """Plots a figure showing performances combining different numbers of replicates under limited sampling effects."""
-
-    w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
-    goldh = w / w_h_ratio
-    nRow, nCol = 2, 2
-    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
-
-    if truncate_index is not None:
-        spearmanr_basic_combine, spearmanr_linear_combine, spearmanr_dcorr_combine = (spearmanr_basic_combine[truncate_index],
-                                                                                      spearmanr_linear_combine[truncate_index],
-                                                                                      spearmanr_dcorr_combine[truncate_index])
-    # num_basic = 4
-    mean_spearmanr_basic = np.mean(spearmanr_basic_combine, axis=(1))
-    mean_spearmanr_linear = np.mean(spearmanr_linear_combine[:, :, :, :, :, linear_selected], axis=(1))
-    mean_spearmanr_dcorr = np.mean(spearmanr_dcorr_combine[:, :, :, :, :, loss_selected, gamma_selected], axis=(1))
-    number_replicates = np.arange(1, 21)
-    xticks = np.array([1, 5, 10, 15, 20])
-    if double_column:
-        indices = np.arange(len(number_replicates))
-    else:
-        # indices = xticks - 1
-        indices = np.arange(len(number_replicates))[::2]
-
-    if max_t is None:
-        max_t = len(truncate_list) - 1
-    if min_t is None:
-        min_t = 0
-    if max_q is None:
-        max_q = len(record_list) - 1
-    # tq_list = [(0, 0), (max_t, 0), (0, max_q), (max_t, max_q)]
-    tq_list = [(min_t, 0), (min_t, max_q), (max_t, 0), (max_t, max_q)]
-
-    for i, (t, q) in enumerate(tq_list):
-        plt.sca(axes[i // nCol, i % nCol])
-        ax = plt.gca()
-
-        for j in range(num_basic):
-            plt.scatter(number_replicates[indices], mean_spearmanr_basic[t, :, p, q, j][indices], color=COLOR_BASIC[j], label=LABEL_BASIC[j], marker=MARKER_BASIC[j], s=SMALLSIZEDOT, alpha=alpha)
-            plt.plot(number_replicates[indices], mean_spearmanr_basic[t, :, p, q, j][indices], color=COLOR_BASIC[j], linewidth=SIZELINE, alpha=alpha)
-        plt.scatter(number_replicates[indices], mean_spearmanr_linear[t, :, p, q][indices], s=SMALLSIZEDOT, marker=MARKER_LINEAR, color=COLOR_LINEAR, label=LABEL_LINEAR, alpha=alpha)
-        plt.plot(number_replicates[indices], mean_spearmanr_linear[t, :, p, q][indices], color=COLOR_LINEAR, linewidth=SIZELINE, alpha=alpha)
-        plt.scatter(number_replicates[indices], mean_spearmanr_dcorr[t, :, p, q][indices], color=COLOR_DCORR, label=LABEL_DCORR, marker=MARKER_DCORR, s=SMALLSIZEDOT, alpha=alpha)
-        plt.plot(number_replicates[indices], mean_spearmanr_dcorr[t, :, p, q][indices], color=COLOR_DCORR, linewidth=SIZELINE, alpha=alpha)
-
-        at_bottom = (i == 2 or i == 3)
-        at_left = (i == 0 or i == 2)
-        plt.xticks(ticks=xticks, labels=xticks if at_bottom else [])
-        plt.xlabel('Number of replicates' if at_bottom else '', fontsize=SIZELABEL)
-        plt.ylim(ylim[i // nCol])
-        if not at_left:
-            ax.set_yticklabels([])
-        plt.ylabel(r"Spearman's $\rho$" if at_left else '', fontsize=SIZELABEL)
-        ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-        if i == 0:
-            plt.legend(fontsize=SIZELEGEND, frameon=True)
-        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        plt.title(f"generations={truncate_list[t]}, interval={record_list[q]}", fontsize=SIZELABEL)
 
     plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
     plt.show()

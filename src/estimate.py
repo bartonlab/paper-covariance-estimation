@@ -45,8 +45,8 @@ def main(verbose=False):
                         help="prefix of .npz file containning input (filename is arg_list.i + f'_s=*_n=*_sample=*_record=*.npz')")
     parser.add_argument('-o',               type=str,       default=None,
                         help="prefix of output .npz file (filename is arg_list.o + f'_truncate=*_window=*.npz')")
-    parser.add_argument('--compact_size',   action='store_true', default=False,
-                        help='whether or not generate a compact-size output (only selections, spearmanr & error)')
+    parser.add_argument('--minimal_size',   action='store_true', default=False,
+                        help='whether or not generate a minimal-size output (only spearmanr & error, one set of covariance matrices for each selection)')
     parser.add_argument('--medium_size',    action='store_true', default=False,
                         help='whether or not generate a medium-size output (selections, spearmanr & error, and covariance without subsampling, and with selected loss and gamma options for non-linear shrinkage)')
     parser.add_argument('-sample_selected', type=int,            default=0,
@@ -275,8 +275,6 @@ def main(verbose=False):
     f = open(arg_list.o + f'_truncate={truncate}_window={window}.npz', 'wb')
     if arg_list.minimal_size:
         np.savez_compressed(f, **performances_dic, **cov_minimal_dic, size="minimal")
-    elif arg_list.compact_size:
-        np.savez_compressed(f, **selections_dic, **performances_dic, size="compact")
     elif arg_list.medium_size:
         np.savez_compressed(f, **selections_dic, **performances_dic, **cov_selected_dic, size="medium")
     else:
