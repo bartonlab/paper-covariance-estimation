@@ -95,9 +95,9 @@ def computeCovariances(p1, p2):
     L = len(p1)
     cov_tmp = np.zeros((L, L), dtype=float)
     for i in range(L):
-        cov_tmp[i, i] = lastp1[i]
+        cov_tmp[i, i] = p1[i]
         for j in range(i + 1, L):
-            cov_tmp[i, j] = lastp2[i, j] - lastp1[i] * lastp1[j]
+            cov_tmp[i, j] = p2[i, j] - p1[i] * p1[j]
             cov_tmp[j, i] = cov_tmp[i, j]
     return cov_tmp
 

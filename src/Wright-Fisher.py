@@ -178,6 +178,7 @@ def computeTrajectories(sVec, nVec):
     for t in range(len(nVec)):
         for i in range(L):
             traj[t, i] = np.sum([sVec[t][k][i] * nVec[t][k] for k in range(len(sVec[t]))]) / N
+    return traj
 
 
 if __name__ == '__main__': main()
