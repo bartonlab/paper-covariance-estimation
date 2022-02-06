@@ -12,14 +12,14 @@ def main(verbose=False):
     """ Simulate Wright-Fisher evolution of a population and save the results. """
 
     parser = argparse.ArgumentParser(description='Wright-Fisher evolutionary simulation.')
-    parser.add_argument('-o',   type=str,   default='data/simoutput',         help='output path and filename')
-    parser.add_argument('-N',   type=int,   default=1000,                     help='population size')
-    parser.add_argument('-L',   type=int,   default=50,                       help='sequence length')
-    parser.add_argument('-T',   type=int,   default=700,                     help='number of generations in simulation')
-    parser.add_argument('-s',   type=str,   default=None,                     help='.npy file containning selection matrix')
-    parser.add_argument('-i',   type=str,   default=None,                     help='.npz file containing initial distribution')
-    parser.add_argument('--mu', type=float, default=1.0e-3,                   help='mutation rate')
-    parser.add_argument('--covAtEachTime', action='store_true', default=False, help='whether or not record covariance at each time point')
+    parser.add_argument('-o', type=str, default='data/simoutput', help='output path and filename')
+    parser.add_argument('-N', type=int, default=1000, help='population size')
+    parser.add_argument('-L', type=int, default=50, help='sequence length')
+    parser.add_argument('-T', type=int, default=700, help='number of generations in simulation')
+    parser.add_argument('-s', type=str, default=None, help='.npy file containning selection coefficients')
+    parser.add_argument('-i', type=str, default=None, help='.npz file containing initial distribution')
+    parser.add_argument('--mu', type=float, default=1.0e-3, help='mutation rate')
+    parser.add_argument('--covAtEachTime', default=False, action='store_true', help='whether or not record covariance at each time point')
 
     arg_list = parser.parse_args(sys.argv[1:])
 
