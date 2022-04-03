@@ -11,6 +11,9 @@ from scipy import stats
 import math
 import MPL                                  # MPL inference tools
 
+# EPSILON = np.finfo(np.float64).eps
+EPSILON = 1e-10
+
 
 def main(verbose=False):
     """Estimates integrated covariance matrix and infer selection coefficients using various methods;
@@ -200,10 +203,10 @@ def main(verbose=False):
                     int_dcorr[s, n, p, q] = computeCorrelation(int_dcov[s, n, p, q])
 
                     # estimated integrated covariance (uncalibrated)
-                    int_dcov_uncalibrated[s, n, p, q]= estimateIntegratedCovarianceMatrix(traj, times, window, population=N, calibration=False)
+                    int_dcov_uncalibrated[s, n, p, q]= estimateIntegratedCovarianceMatrix(traj, times, window, population=N, calibrate=False)
                     int_dcorr_uncalibrated_tmp = computeCorrelation(int_dcov_uncalibrated[s, n, p, q])
 
-                    # performance on estimating the covariance with calibrated/uncalibrated cov
+                    # performance on estimating the covariance with calibrated or uncalibrated cov
                     spearmanr_cov_calibrated[s, n, p, q], error_cov_calibrated[s, n, p, q] = computeMetricsForCovarianceEstimation(int_dcov[s, n, p, q], int_cov[s, n, p, q])
                     spearmanr_cov_uncalibrated[s, n, p, q], error_cov_uncalibrated[s, n, p, q] = computeMetricsForCovarianceEstimation(int_dcov_uncalibrated[s, n, p, q], int_cov[s, n, p, q])
 
@@ -223,7 +226,7 @@ def main(verbose=False):
                         (spearmanr_linear[s, n, p, q, r],
                          error_linear[s, n, p, q, r]) = computePerformance(selections_linear[s, n, p, q, r], selections[s])
 
-                    # Performance of estimating covariance with calibrated/uncalibrated and linearly regularized cov
+                    # Performance of estimating covariance with calibrated or uncalibrated and linearly regularized cov
                     for r in range(len(linear)):
                         int_dcov_calibrated_linear_tmp = int_dcov[s, n, p, q] + record[q] * linear[r] * IdentityMatrix
                         spearmanr_cov_calibrated_linear[s, n, p, q, r], error_cov_calibrated_linear[s, n, p, q, r] = computeMetricsForCovarianceEstimation(int_dcov_calibrated_linear_tmp, int_cov[s, n, p, q])
@@ -335,7 +338,7 @@ def main(verbose=False):
     f.close()
 
     end = timer()
-    print('\nTotal time: %lfs' % (end - start))
+    print('\nTotal time: %lfs ~ %.2fh' % (end - start, (end - start) / 3600))
 
 
 def computeD(traj, times, mu):
@@ -354,7 +357,7 @@ def computeCorrelation(cov_matrix):
     corr = np.zeros((L, L), dtype=float)
 
     for i in range(L):
-        if cov_matrix[i, i] > 1e-309:
+        if cov_matrix[i, i] >= EPSILON:
             multiplier[i] = 1 / np.sqrt(cov_matrix[i, i])
 
     for i in range(L):
@@ -409,7 +412,7 @@ def computeCorrToCovMultiplier(cov):
     return multiplier
 
 
-def estimateIntegratedCovarianceMatrix(traj, times, window, population=1000, calibration=True):
+def estimateIntegratedCovarianceMatrix(traj, times, window, population=1000, calibrate=True, interpolate=True):
     """Estimates integrated covariance matrix from allele frequency trajectories."""
 
     T = len(traj) - 1
@@ -428,7 +431,7 @@ def estimateIntegratedCovarianceMatrix(traj, times, window, population=1000, cal
             est_cov[t] += dxdx[t + dt]
             est_cov[t] += dxdx[t - dt]
             count_time_point += 2
-        if not calibration:
+        if not calibrate:
             for i in range(L):
                 est_cov[t, i, i] *= population / count_time_point
                 for j in range(i):
@@ -438,9 +441,9 @@ def estimateIntegratedCovarianceMatrix(traj, times, window, population=1000, cal
             rescaling_multiplier = np.full((L, L), 1, dtype=float)
             for i in range(L):
                 # Only when frequency of site i remains unchanged in the time window, could est_cov[t, i, i] be 0, in which case we preserve the original estimate of covariance.
-                if est_cov[t, i, i] != 0:
+                if abs(est_cov[t, i, i]) >= EPSILON:
                     for j in range(i):
-                        if est_cov[t, j, j] != 0:
+                        if abs(est_cov[t, i, i] * est_cov[t, j, j]) >= EPSILON:
                             rescaling_multiplier[i, j] = np.sqrt(variances[t, i] * variances[t, j] / (est_cov[t, i, i] * est_cov[t, j, j]))
                             rescaling_multiplier[j, i] = rescaling_multiplier[i, j]
             for i in range(L):
@@ -449,9 +452,7 @@ def estimateIntegratedCovarianceMatrix(traj, times, window, population=1000, cal
                     est_cov[t, i, j] *= rescaling_multiplier[i, j]
                     est_cov[t, j, i] = est_cov[t, i, j]
 
-    int_est_cov = np.zeros((L, L), dtype=float)
-    for t in range(T):
-        int_est_cov += (times[t + 1] - times[t]) * est_cov[t]
+    int_est_cov = integrateCovarianceMatrix(traj, times, est_cov, interpolate=(interpolate and calibrate))  # Only interpolate when calibration (normalization) is enabled. This is because interaction between non-calibration and interpolation will lead to variances with smaller magnitude such that inferred selection gets too off.
     return int_est_cov
 
 
@@ -489,6 +490,49 @@ def computeDxdx(dx):
     for t in range(T):
         dxdx[t] = np.outer(dx[t], dx[t])
     return dxdx
+
+
+def integrateCovarianceMatrix(traj, times, cov, interpolate=True):
+    """Computes integrated covariance matrix."""
+
+    T = len(traj) - 1
+    L = len(traj[0])
+    int_cov = np.zeros((L, L), dtype=float)
+    if interpolate:
+        x = computeCooccurenceTrajFromCovariance(traj, cov)
+        for t in range(T - 1):
+            dg = times[t + 1] - times[t]
+            for i in range(L):
+                int_cov[i, i] += MPL.integratedVariance(traj[t, i], traj[t + 1, i], dg)
+                for j in range(i + 1, L):
+                    int_cov[i, j] += MPL.integratedCovariance(traj[t, i], traj[t, j], x[t, i, j], traj[t+1, i], traj[t+1, j], x[t+1, i, j], dg)
+        for i in range(L):
+            for j in range(i + 1, L):
+                int_cov[j, i] = int_cov[i, j]
+    else:
+        for t in range(T):
+            if t == 0:
+                dg = times[1] - times[0]
+            elif t == len(times) - 1:
+                dg = times[t] - times[t - 1]
+            else:
+                dg = (times[t + 1] - times[t - 1]) / 2
+            int_cov += dg * cov[t]
+    return int_cov
+
+
+def computeCooccurenceTrajFromCovariance(traj, cov):
+    """Computes cooccurence frequency x_{ij}."""
+
+    T = len(traj) - 1
+    L = len(traj[0])
+    xixj = np.zeros((T, L, L), dtype=float)
+    xij = np.zeros((T, L, L), dtype=float)
+    for t in range(T):
+        xixj[t] = np.outer(traj[t], traj[t])
+        xij[t] = cov[t] + xixj[t]
+
+    return xij
 
 
 def shrinkCorrelation(matrix, loss, gamma, PRESERVE_SMALL_END=False):

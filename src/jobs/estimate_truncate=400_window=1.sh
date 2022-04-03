@@ -3,7 +3,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=16G
-#SBATCH --time=16:00:00
+#SBATCH --time=40:00:00
 #SBATCH --output=estimate_truncate=400_window=1.stdout
 #SBATCH --job-name="estimate_truncate=400_window=1"
 date

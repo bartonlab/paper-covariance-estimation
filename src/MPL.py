@@ -54,8 +54,8 @@ def processStandard(sequences, frequencies, times, q, totalCov, covAtEachTime=Fa
                     intCovAtTimes[covTimeIndex] = deepcopy(totalCov)
                     covTimeIndex += 1
         if not k == len(sequences) - 1:
-            lastp1 = p1
-            lastp2 = p2
+            lastp1[:] = p1
+            lastp2[:] = p2
 
     if covAtEachTime:
         return cov
@@ -116,13 +116,11 @@ def updateCovarianceIntegrate(dg, p1_0, p2_0, p1_1, p2_1, totalCov):
     N = len(p1_0)
 
     for a in range(N):
-        totalCov[a, a] += dg * ( ((3 - 2 * p1_1[a]) * (p1_0[a] + p1_1[a])) - 2 * (p1_0[a] * p1_0[a]) ) / 6
+        totalCov[a, a] += integratedVariance(p1_0[a], p1_1[a], dg)
 
         for b in range(a + 1, N):
-            dCov1 = -dg * ((2 * p1_0[a] * p1_0[b]) + (2 * p1_1[a] * p1_1[b]) + (p1_0[a] * p1_1[b]) + (p1_1[a] * p1_0[b])) / 6
-            dCov2 = dg * 0.5 * (p2_0[a, b] + p2_1[a, b])
-            totalCov[a, b] += dCov1 + dCov2
-            totalCov[b, a] += dCov1 + dCov2
+            totalCov[a, b] += integratedCovariance(p1_0[a], p1_0[b], p2_0[a, b], p1_1[a], p1_1[b], p2_1[a, b], dg)
+            totalCov[b, a] = totalCov[a, b]
 
 
 def computeD(traj, times, mu):
@@ -143,3 +141,19 @@ def inferSelection(int_cov, D, regularization_matrix):
         regularization_matrix: A matrix added to integrated covariance matrix for regularization.
     """
     return np.dot(np.linalg.inv(int_cov + regularization_matrix), D)
+
+
+def integratedVariance(xi_0, xi_1, dg):
+    """
+    Calculates integrated variance between two time points, where allele frequencies are linearly interpolated in between.
+    """
+    return dg * ( ((3 - 2 * xi_1) * (xi_0 + xi_1)) - 2 * (xi_0 * xi_0) ) / 6
+
+
+def integratedCovariance(xi_0, xj_0, xij_0, xi_1, xj_1, xij_1, dg):
+    """
+    Calculates integrated covariance between two time points, where allele frequencies are linearly interpolated in between.
+    """
+    intCov1 = -dg * ((2 * xi_0 * xj_0) + (2 * xi_1 * xj_1) + (xi_0 * xj_1) + (xi_1 * xj_0)) / 6
+    intCov2 = dg * 0.5 * (xij_0 + xij_1)
+    return intCov1 + intCov2

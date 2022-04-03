@@ -600,7 +600,7 @@ def plot_figure_performance_estimation_normalization_window(true_cov, est_cov, e
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_figure_performance_with_ample_data(spearmanr_basic, error_basic, truncate_list=TRUNCATE,  arrange_vertically=False, save_file=None):
+def plot_figure_performance_with_ample_data(spearmanr_basic, error_basic, truncate_list=TRUNCATE, plotUnnormalized=False, arrange_vertically=False, save_file=None):
     """Plots a figure comparing performances of the SL, MPL and est methods using complete data."""
 
     w = SINGLE_COLUMN
@@ -620,9 +620,11 @@ def plot_figure_performance_with_ample_data(spearmanr_basic, error_basic, trunca
     for i, data in enumerate(plot_data):
         plt.sca(axes[i])
         ax = plt.gca()
-        for j in range(NUM_BASIC_METHODS):
+        num_basic_methods = NUM_BASIC_METHODS if not plotUnnormalized else 4
+        for j in range(num_basic_methods):
+            linestyle = 'solid' if j < 3 else 'dashed'
             plt.scatter(truncate_list, data[:, j], color=COLOR_BASIC[j], label=LABEL_BASIC[j], marker=MARKER_BASIC[j], s=SMALLSIZEDOT)
-            plt.plot(truncate_list, data[:, j], color=COLOR_BASIC[j], linewidth=SIZELINE)
+            plt.plot(truncate_list, data[:, j], color=COLOR_BASIC[j], linewidth=SIZELINE, linestyle=linestyle)
 
         if i == 0:
             plt.ylim(0.45, 0.95)
