@@ -594,7 +594,7 @@ def plot_figure_performance_estimation_normalization_window(true_cov, est_cov, e
     plt.setp(ax.spines.values(), **DEF_AXPROPS)
     ax.tick_params(**DEF_TICKPROPS)
 
-    plt.subplots_adjust(0.05, 0.08, 0.9, 0.96)
+    plt.subplots_adjust(0.05, 0.152, 0.9, 0.96)
     plt.show()
     if save_file:
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
@@ -977,7 +977,7 @@ def plot_supplementary_figure_selections(selections, ylim_top=(0, 42), ylim_bott
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_supplementary_figure_biplot_cov(true_cov, est_cov, linear_cov, nonlinear_cov, s=1, alpha=0.5, xticks_top=None, xticks_bottom=None, figsize=None, save_file=None):
+def plot_supplementary_figure_biplot_cov(true_cov, est_cov, linear_cov, nonlinear_cov, s=1, alpha=0.5, xticks_top=None, plot_xticks_top_on_top=False, xticks_bottom=None, figsize=None, save_file=None):
     w = DOUBLE_COLUMN #SLIDE_WIDTH
     nRow, nCol = 2, 3
     goldh = w * (nRow / nCol)
@@ -1020,19 +1020,20 @@ def plot_supplementary_figure_biplot_cov(true_cov, est_cov, linear_cov, nonlinea
         else:
             plt.yticks(ticks=[], labels=[])
         plt.xlabel(xlabels[i], fontsize=SIZELABEL)
-        if at_top:
+        if plot_xticks_top_on_top and at_top:
             ax.xaxis.tick_top()
             # ax.xaxis.set_label_position('top')
         if at_top and xticks_top is not None:
             plt.xticks(ticks=xticks_top, labels=xticks_top)
         if at_bottom and xticks_bottom is not None:
             plt.xticks(ticks=xticks_bottom, labels=xticks_bottom)
-        if at_top:
+        if plot_xticks_top_on_top and at_top:
             ax.tick_params(**DEF_TICKPROPS_TOP)
         else:
             ax.tick_params(**DEF_TICKPROPS)
         plt.setp(ax.spines.values(), **DEF_AXPROPS)
 
+    plt.subplots_adjust(0.08, 0.1, 0.98, 0.95, hspace=0.3)
     plt.show()
     if save_file:
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
