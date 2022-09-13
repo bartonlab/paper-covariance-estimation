@@ -41,7 +41,7 @@ def main(verbose=False):
     start = timer() # track running time
     print(f'out_file = {out_file}\ndic_file = {dic_file}\nsample = {sample}\nrecord = {record}')
 
-    dic = np.load(dic_file)
+    dic = np.load(dic_file, allow_pickle=True)
 
     sVec, nVec, times = subsample(dic['sVec'], dic['nVec'], dic['times'], sample, record, replace=arg_list.replace)
 
@@ -60,22 +60,24 @@ def main(verbose=False):
 
     compact_dic = {'traj': traj, 'cov': totalCov, 'mu': dic['mu'], 'times': times}
     genotype_dic = {'nVec': nVec, 'sVec': sVec}
-    f = open(out_file + '.npz', 'wb')
+
+    f = out_file + '.npz'
+    # f = open(out_file + '.npz', 'wb')
     if arg_list.compact:
         if arg_list.covAtEachTime:
-            np.savez_compressed(f, **compact_dic, covAtEachTime=covAtEachTime)
+            np.savez(f, **compact_dic, covAtEachTime=covAtEachTime)
         elif arg_list.intCovAtTimes:
-            np.savez_compressed(f, **compact_dic, intCovTimes=intCovTimes, intCovAtTimes=intCovAtTimes)
+            np.savez(f, **compact_dic, intCovTimes=intCovTimes, intCovAtTimes=intCovAtTimes)
         else:
-            np.savez_compressed(f, **compact_dic)
+            np.savez(f, **compact_dic)
     else:
         if arg_list.covAtEachTime:
-            np.savez_compressed(f, **compact_dic, **genotype_dic, covAtEachTime=covAtEachTime)
+            np.savez(f, **compact_dic, **genotype_dic, covAtEachTime=covAtEachTime)
         elif arg_list.intCovAtTimes:
-            np.savez_compressed(f, **compact_dic, **genotype_dic, intCovTimes=intCovTimes, intCovAtTimes=intCovAtTimes)
+            np.savez(f, **compact_dic, **genotype_dic, intCovTimes=intCovTimes, intCovAtTimes=intCovAtTimes)
         else:
-            np.savez_compressed(f, **compact_dic, **genotype_dic)
-    f.close()
+            np.savez(f, **compact_dic, **genotype_dic)
+    # f.close()
 
     end = timer()
     print('\nTotal time: %lfs\n' % (end - start))

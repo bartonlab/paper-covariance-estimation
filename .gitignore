@@ -1,24 +1,46 @@
 # Local files
-# src/jobs
 __pycache__
 .ipynb_checkpoints
-test_data
 data.zip
-src/test_jobs
+data_initial_submission.zip
+src/initial/initial_backup.npz
 src/test_estimate.py
+
 test_figures.ipynb
 test_figures_tmp.ipynb
+test_figures_more_results_on_estimating_covariance.ipynb
+test_additional_figures.ipynb
+figures_revision.ipynb
+figures_deprecated_20220810.ipynb
+backup_figures_20220121.ipynb
+backup_figures_20220808.ipynb
+test_figures_interpolate.ipynb
+
 test_simulation-analysis.ipynb
 test_individual_analysis.ipynb
 test_non-linear_on_MPL.ipynb
-test_figures_more_results_on_estimating_covariance.ipynb
-backup_figures_20220121.ipynb
+simulation-analysis-backup.ipynb
 test_playground.ipynb
-test_figures_interpolate.ipynb
 test_influence_of_interpolation.ipynb
+
+scp_commands.ipynb
+simulation-analysis-revision.ipynb
+test_compare_with_alternative_mathods.ipynb
+test_application_on_real_data.ipynb
+test_application_on_real_data_2.ipynb
 
 # Directories with large files
 data
 test_data
+backup_data_before_revision
+backup_data_20220808
+backup_data_simulation_r=1e-6
 complete_estimation_output
-backup_figures
+backup_figures_20220121
+backup_figures_20220808
+
+jobs
+src/initial_backup
+src/selection_backup
+src/jobs
+src/test_jobs

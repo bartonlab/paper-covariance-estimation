@@ -145,15 +145,96 @@ def inferSelection(int_cov, D, regularization_matrix):
 
 def integratedVariance(xi_0, xi_1, dg):
     """
-    Calculates integrated variance between two time points, where allele frequencies are linearly interpolated in between.
+    Computes integrated variance between two time points, where allele frequencies are linearly interpolated in between.
     """
     return dg * ( ((3 - 2 * xi_1) * (xi_0 + xi_1)) - 2 * (xi_0 * xi_0) ) / 6
 
 
 def integratedCovariance(xi_0, xj_0, xij_0, xi_1, xj_1, xij_1, dg):
     """
-    Calculates integrated covariance between two time points, where allele frequencies are linearly interpolated in between.
+    Computes integrated covariance between two time points, where allele frequencies are linearly interpolated in between.
     """
     intCov1 = -dg * ((2 * xi_0 * xj_0) + (2 * xi_1 * xj_1) + (xi_0 * xj_1) + (xi_1 * xj_0)) / 6
     intCov2 = dg * 0.5 * (xij_0 + xij_1)
     return intCov1 + intCov2
+
+
+def computeGenotypeFitnessFromSelection(genotypes, selections):
+    """
+    Computes fitness values for a list of genotypes.
+    """
+    fitness = [1 for genotype in genotypes]
+    for k, genotype in enumerate(genotypes):
+        for i, locus in enumerate(genotype):
+            fitness[k] += selections[i] * locus
+    return fitness
+
+
+def computePopulationFitnessFromSelection(traj, selections):
+    """
+    Computes fitness values for a list of genotypes.
+    """
+    return 1 + np.sum(traj[-1] * selections)
+
+
+def integrateCovarianceFromStableGenotypes(genotypes, genoTraj, times, q=2):
+    """Integrates covariance from time-series genotype frequencies.
+    """
+
+    L = len(genotypes[0])
+    T = len(genoTraj)
+    genotypes = np.array(genotypes)
+    p1 = np.zeros(L, dtype=float)
+    p2 = np.zeros((L, L), dtype=float)
+    lastp1 = np.zeros(L, dtype=float)
+    lastp2 = np.zeros((L, L), dtype=float)
+    intCov = np.zeros((L, L), dtype=float)
+
+    computeAllelFrequencies(genotypes, genoTraj[0], q, lastp1, lastp2)
+
+    for k in range(1, T):
+        computeAllelFrequencies(genotypes, genoTraj[k], q, p1, p2)
+        updateCovarianceIntegrate(times[k] - times[k-1], lastp1, lastp2, p1, p2, intCov)
+        if not k == T - 1:
+            lastp1[:] = p1
+            lastp2[:] = p2
+
+    return intCov
+
+
+def integrateCovarianceFromSequences(sequences, times, q=2):
+    """Integrates covariance from sequences at each time point.
+    """
+
+    L = len(sequences[0][0])
+    T = len(sequences)
+    p1 = np.zeros(L, dtype=float)
+    p2 = np.zeros((L, L), dtype=float)
+    lastp1 = np.zeros(L, dtype=float)
+    lastp2 = np.zeros((L, L), dtype=float)
+    intCov = np.zeros((L, L), dtype=float)
+
+    N = len(sequences[0])
+    frequencies = np.full(N, 1 / N)
+    computeAllelFrequencies(np.array(sequences[0]), frequencies, q, lastp1, lastp2)
+
+    for k in range(1, T):
+        N = len(sequences[k])
+        frequencies = np.full(N, 1 / N)
+        computeAllelFrequencies(np.array(sequences[k]), frequencies, q, p1, p2)
+        updateCovarianceIntegrate(times[k] - times[k-1], lastp1, lastp2, p1, p2, intCov)
+        if not k == T - 1:
+            lastp1[:] = p1
+            lastp2[:] = p2
+
+    return intCov
+
+
+def computeIntegratedVariance(traj, times):
+    T, L = traj.shape
+    intVar = np.zeros((L, L), dtype=float)
+    for t in range(0, T - 1):
+        dg = times[t + 1] - times[t]
+        for i in range(L):
+            intVar[i, i] += integratedVariance(traj[t, i], traj[t + 1, i], dg)
+    return intVar

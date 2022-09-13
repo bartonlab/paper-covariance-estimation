@@ -19,6 +19,8 @@ def main(verbose=False):
     parser.add_argument('-s', type=str, default=None, help='.npy file containning selection coefficients')
     parser.add_argument('-i', type=str, default=None, help='.npz file containing initial distribution')
     parser.add_argument('--mu', type=float, default=1.0e-3, help='mutation rate')
+    parser.add_argument('--recombination', action='store_true', default=False, help='whether or not enable recombination')
+    parser.add_argument('-r', '--recombination_rate', type=float, default=0, help='recombination rate (probability for any two sequence to recombine at a generation)')
     parser.add_argument('--covAtEachTime', default=False, action='store_true', help='whether or not record covariance at each time point')
 
     arg_list = parser.parse_args(sys.argv[1:])
@@ -27,6 +29,7 @@ def main(verbose=False):
     L = arg_list.L
     T = arg_list.T
     mu = arg_list.mu
+    recombination_rate = arg_list.recombination_rate
     out_str = arg_list.o
     selection = np.load(arg_list.s)
 
@@ -38,8 +41,9 @@ def main(verbose=False):
             sequence: Genotype of the species.
             f: Fitness value of the species.
         """
+        num_recombination_events = 0
         def __init__(self, n=1, f=1., **kwargs):
-            """Initializes clone-specific variables."""
+            """ Initializes clone-specific variables. """
             self.n = n
             if 'sequence' in kwargs:
                 self.sequence = np.array(kwargs['sequence'])
@@ -50,11 +54,11 @@ def main(verbose=False):
 
         @classmethod
         def clone(cls, s):
-            """Returns a new copy of the input Species"""
+            """ Returns a new copy of the input Species. """
             return cls(n=1, f=s.f, sequence=[k for k in s.sequence])
 
         def mutate(self):
-            """ Mutate and return self + new species."""
+            """ Mutate and return self + new species. """
             newSpecies = []
             if self.n > 0:
                 nMut = np.random.binomial(self.n, mu * L)  # get number of individuals that mutate
@@ -68,6 +72,35 @@ def main(verbose=False):
             if self.n > 0:
                 newSpecies.append(self)
             return newSpecies
+
+        def recombine(self, other):
+            """ Recombination with another Species. Return only new species. """
+            newSpecies = []
+            nRecomb = 0
+            nPairs = self.n * other.n
+            if nPairs > 0:
+                nRecomb = np.random.binomial(nPairs, recombination_rate)  # This is a good approximation when recombination_rate is small.
+                nRecomb = min(nRecomb, min(self.n, other.n))  # In case nRecomb > one of the population size
+                Species.num_recombination_events += nRecomb
+                for i in range(nRecomb):
+                    pos = np.random.randint(1, L)
+                    s1 = Species(n=1, sequence=np.concatenate((self.sequence[:pos], other.sequence[pos:])))
+                    s2 = Species(n=1, sequence=np.concatenate((other.sequence[:pos], self.sequence[pos:])))
+                    self.n -= 1
+                    other.n -= 1
+                    newSpecies.append(s1)
+                    newSpecies.append(s2)
+            return newSpecies
+
+        def split_mutations_at(self, pos):
+            left, right = set(), set()
+            for m in self.mutations:
+                p = Species.mid_to_pos[m]
+                if p <= pos:
+                    left.add(m)
+                else:
+                    right.add(m)
+            return left, right
 
     start = timer()  # track running time
     pop = []  # Population
@@ -109,21 +142,30 @@ def main(verbose=False):
         for i in range(len(pop)):
             pop[i].n = n[i] # set new number of each species
             mutated_pop = pop[i].mutate()
-            for j, species in enumerate(mutated_pop):
-                key = species.sequence.tobytes()
-                if key in seq_to_index:
-                    index = seq_to_index[key]
-                    newPop[index].n += species.n
-                else:
-                    seq_to_index[key] = len(newPop)
-                    newPop.append(species)
+            for species in mutated_pop:
+                updatePop(newPop, species, seq_to_index)
         pop = newPop
+
+        # Recombination
+        if arg_list.recombination:
+            newPop = []
+            seq_to_index = {}
+            for i, s1 in enumerate(pop):
+                for j, s2 in enumerate(pop[i+1:]):
+                    newSpecies = s1.recombine(s2)  # Only new species from recombination are returned
+                    for species in newSpecies:
+                        updatePop(newPop, species, seq_to_index)
+            # Add the species that did not under go recombination
+            for i, species in enumerate(pop):
+                updatePop(newPop, species, seq_to_index)
+            pop = newPop
 
         if t % record == 0:
             nVec.append(np.array([s.n        for s in pop]))
             sVec.append(np.array([s.sequence for s in pop]))
 
     end = timer()
+    print('num_recombination_events:', Species.num_recombination_events)
     print('\nTotal simulation time: %lfs, average per generation %lfs' % ((end - start), (end - start) / float(T)))
 
     start  = timer()
@@ -136,15 +178,26 @@ def main(verbose=False):
     totalCov = np.zeros((L, L), dtype=float)
     covAtEachTime = MPL.processStandard(sVec, [i / N for i in nVec], times, q, totalCov, covAtEachTime=arg_list.covAtEachTime)
 
-    f = open(out_str + '.npz', 'wb')
+    # f = open(out_str + '.npz', 'wb')
+    f = out_str + '.npz'
     if arg_list.covAtEachTime:
-        np.savez_compressed(f, nVec=nVec, sVec=sVec, traj=traj, cov=totalCov, mu=mu, times=times, covAtEachTime=covAtEachTime)
+        np.savez_compressed(f, nVec=nVec, sVec=sVec, traj=traj, cov=totalCov, mu=mu, r=r, num_recombination_events=Species.num_recombination_events, times=times, covAtEachTime=covAtEachTime)
     else:
-        np.savez_compressed(f, nVec=nVec, sVec=sVec, traj=traj, cov=totalCov, mu=mu, times=times)
-    f.close()
+        np.savez_compressed(f, nVec=nVec, sVec=sVec, traj=traj, cov=totalCov, mu=mu, r=r, num_recombination_events=Species.num_recombination_events, times=times)
+    # f.close()
 
     end = timer()
     print('\nCompute & output time: %lfs' % (end - start))
+
+
+def updatePop(pop, species, seq_to_index):
+    key = species.sequence.tobytes()
+    if key in seq_to_index:
+        index = seq_to_index[key]
+        pop[index].n += species.n
+    else:
+        seq_to_index[key] = len(pop)
+        pop.append(species)
 
 
 def fitness(selection, seq):
