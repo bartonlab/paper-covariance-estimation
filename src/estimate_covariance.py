@@ -68,8 +68,8 @@ def computeCorrToCovMultiplier(cov):
     """Computes the multiplier by which, multiplier x correlation x multiplier = covariance."""
 
     multiplier = np.zeros_like(cov)
-    for t in range(len(cov)):
-        multiplier[t, t] = math.sqrt(cov[t, t])
+    for l in range(len(cov)):
+        multiplier[l, l] = math.sqrt(cov[l, l])
     return multiplier
 
 
@@ -97,6 +97,10 @@ def compute_est_cov(traj, window, population=1000, calibrate=True):
     T = len(traj) - 1
     L = len(traj[0])
     variances = computeVariances(traj)
+    for t in range(T):
+        for l in range(L):
+            if variances[t, l] < 0:
+                print(f't={t}, l={l}, var={variances[t, l]}')
     dx = computeDx(traj)
     dxdx = computeDxdx(dx)
     est_cov = np.zeros((T, L, L), dtype=float)

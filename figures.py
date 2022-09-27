@@ -242,9 +242,9 @@ DEF_TICKPROPS_CBAR = {
     'colors'    : BKCOLOR,
     'labelsize' : SIZETICK,
     'bottom'    : True,
-    'left'      : True,
+    'left'      : False,
     'top'       : False,
-    'right'     : False,
+    'right'     : True,
 }
 
 DEF_TICKPROPS_TOP = {
@@ -730,6 +730,147 @@ def plot_figure_traj_cov_example(traj, selection, true_cov, est_cov, alpha=0.85,
     cbar_ticks -= cbar_ticks[np.argmin(np.abs(cbar_ticks))]
     ax = plt.gca()
     sns.heatmap(cov, center=0, vmin=vmin - vpad, vmax=vmax + vpad, cmap=sns.diverging_palette(120, 300, as_cmap=True), square=True, cbar=True, cbar_ax=cbar_ax5, cbar_kws=dict(ticks=cbar_ticks, orientation="horizontal"), rasterized=rasterized)
+    plt.yticks(ticks=[], labels=[], fontsize=SIZELABEL)
+    plt.xticks(ticks=[], labels=[], fontsize=SIZELABEL)
+    cbar_ax5.tick_params(**DEF_TICKPROPS_CBAR)
+    ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+    plt.text(x=-0.06, y=sublabel_y, s=SUBLABELS[i + 1], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    # plt.subplots_adjust(0.01, 0.01, 0.988, 0.985)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_figure_traj_cov_example_2(traj, selection, true_cov, est_cov, alpha=0.85, xlim=XLIM_GENERATION, ylim=(-0.02, 1.12), matrix_labels=None, vpad=5, title_pad=3, cbar_ticks=None, rasterized=True, save_file=None):
+    w = SINGLE_COLUMN
+    # goldh = w / GOLD_RATIO
+    ratio = 1.2
+    fig = plt.figure(figsize=(w, w * ratio))
+
+    global_left, global_right, global_bottom, global_top = 0.14, 0.9, 0.01, 0.98
+    wspace = 0.15
+    heatmap_width = (global_right - global_left) / (2 + wspace)
+    heatmap_height = heatmap_width / ratio
+    wspace = 0.3
+    row1_bottom = 0.76
+    row2_top = global_bottom + (global_right - global_left) / ratio
+    row2_bottom = row2_top - heatmap_height
+    row3_top = global_bottom + heatmap_height
+
+    row1_box = dict(left=global_left, right=global_right, bottom=row1_bottom, top=global_top)
+    row2_box = dict(left=global_left, right=global_right, bottom=row2_bottom, top=row2_top)
+    row3_box = dict(left=global_left, right=global_right, bottom=global_bottom, top=row3_top)
+
+    gs1 = gridspec.GridSpec(1, 1, **row1_box)
+    gs2 = gridspec.GridSpec(1, 2, wspace=wspace, **row2_box)
+    gs3 = gridspec.GridSpec(1, 2, wspace=wspace, **row3_box)
+
+    ax1 = plt.subplot(gs1[0, 0])
+    ax2, ax3 = plt.subplot(gs2[0, 0]), plt.subplot(gs2[0, 1])
+    ax4, ax5 = plt.subplot(gs3[0, 0]), plt.subplot(gs3[0, 1])
+
+    heatmaps = [ax2, ax3, ax4]
+    cov_list = [true_cov, est_cov, est_cov - true_cov]
+    title_list = [r"True covariance matrix, $\it{C}$", r"Estimated covariance matrix, $\it{\hat{C}}$", " " * 58 + "Error of estimated covariance matrix, $\it{\hat{C}-C}$"]
+    vmin = min(np.min(cov_list[0]), np.min(cov_list[1]))
+    vmax = max(np.max(cov_list[0]), np.max(cov_list[1]))
+    # cbar_y, cbar_length, cbar_width = 0.03, heatmap_width, 0.01
+    # cbar_ax = fig.add_axes(rect=[global_left, cbar_y, cbar_length, cbar_width])
+
+    cbar_y, cbar_length, cbar_width = 0.03, 0.012, heatmap_height * 0.94
+    cbar_ax = fig.add_axes(rect=[global_left + heatmap_width - 0.008, row2_bottom + 0.0075, cbar_length, cbar_width])
+
+    # cbar_ax = fig.add_axes(rect=[.59, .0285, .02, 0.3])
+    # cbar_y, cbar_length, cbar_width = 0.03, heatmap_width, 0.01
+    cbar_y, cbar_length, cbar_width = global_bottom + 0.0075, 0.01, heatmap_height * 0.94
+    cbar_ax5 = fig.add_axes(rect=[global_right + 0.0135, cbar_y, cbar_length, cbar_width])
+
+    if matrix_labels is None:
+        matrix_labels = [1] + [10 * i for i in range(1, 6)]
+    matrix_ticks = [l - 0.5 for l in matrix_labels]
+
+    plt.sca(ax1)
+    ax = plt.gca()
+    traj_list = []
+    for l in range(len(traj[0])):
+        traj_list.append(list(traj[:, l]))
+    sorted_pair = sorted(zip(selection, traj_list), key=lambda x: np.mean(x[1]), reverse=True)
+    selection = [i for i, _ in sorted_pair]
+    traj = np.array([i for _, i in sorted_pair]).T
+    first_ben = first_neu = first_del = True
+    for l in range(len(traj[0])):
+        label = None
+        if selection[l] > 0:
+            color = C_BEN_LT
+            if first_ben:
+                label = 'Beneficial'
+                first_ben = False
+        elif selection[l] < -0:
+            color = C_DEL_LT
+            if first_del:
+                label = 'Deleterious'
+                first_del = False
+        else:
+            color = C_NEU_LT
+            if first_neu:
+                label = 'Neutral'
+                first_neu = False
+        if label is not None:
+            plt.plot(range(len(traj)), traj[:, l], color=color, alpha=alpha, linewidth=SIZELINE, label=label, rasterized=rasterized)
+        else:
+            plt.plot(range(len(traj)), traj[:, l], color=color, alpha=alpha, linewidth=SIZELINE, rasterized=rasterized)
+
+    plt.ylabel("Mutant allele\nfrequency", fontsize=SIZELABEL)
+    plt.xlabel("Generation", fontsize=SIZELABEL)
+    plt.ylim(ylim)
+    plt.xlim(xlim)
+    plt.yticks(np.linspace(0, 1, 6))
+    ax.tick_params(**DEF_TICKPROPS)
+    plt.setp(ax.spines.values(), **DEF_AXPROPS)
+    # plt.legend(loc=0, frameon=False, fontsize=SIZELEGEND)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.06), fontsize=SIZELEGEND, frameon=False, ncol=3)
+    plt.text(x=-0.1, y=1, s=SUBLABELS[0], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+    sublabel_y = 0.96
+
+
+    # if cbar_ticks is None:
+    #     cbar_ticks = np.arange(int(vmin/5)*5, int(vmax/5)*5, 50)
+    #     cbar_ticks -= cbar_ticks[np.argmin(np.abs(cbar_ticks))]
+    cbar_ticks = [-40, 0, 40, 80, 120]
+    for i, cov in enumerate(cov_list):
+        plt.sca(heatmaps[i])
+        ax = plt.gca()
+        plot_cbar = (i == 0)
+        sns.heatmap(cov, center=0, vmin=vmin - vpad, vmax=vmax + vpad, cmap=sns.diverging_palette(208, 12, as_cmap=True), square=True, cbar=plot_cbar,
+                    cbar_ax=cbar_ax if plot_cbar else None,
+                    cbar_kws=dict(ticks=cbar_ticks, orientation="vertical"),
+                    rasterized=rasterized)
+        plt.title(title_list[i], fontsize=SIZELABEL, pad=title_pad)
+        # plt.xlabel(title_list[i], fontsize=SIZELABEL, labelpad=3 if i == 0 else 2)
+        if i == 0 or i == 2:
+            plt.yticks(ticks=matrix_ticks, labels=matrix_labels, fontsize=SIZELABEL)
+            plt.ylabel('Locus index', fontsize=SIZELABEL)
+        else:
+            plt.yticks(ticks=[], labels=[], fontsize=SIZELABEL)
+        # plt.xticks(ticks=matrix_ticks, labels=matrix_labels, fontsize=SIZELABEL, rotation=0)
+        plt.xticks(ticks=[], labels=[], fontsize=SIZELABEL)
+        if plot_cbar:
+            # cbar_ax.tick_params(labelsize=SIZELABEL)
+            cbar_ax.tick_params(**DEF_TICKPROPS_CBAR)
+        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+        plt.text(x=-0.06 if i == 1 else -0.23, y=sublabel_y, s=SUBLABELS[i + 1], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    plt.sca(ax5)
+    i = 3
+    cov = est_cov - true_cov
+    vmin, vmax = np.min(cov), np.max(cov)
+    vpad = (vmax - vmin) // 20
+    # cbar_ticks = np.arange(vmin//3*3, vmax//3*3 + 3, 3)
+    # cbar_ticks -= cbar_ticks[np.argmin(np.abs(cbar_ticks))]
+    cbar_ticks = [-12, -8, -4, 0, 4, 8]
+    ax = plt.gca()
+    sns.heatmap(cov, center=0, vmin=vmin - vpad, vmax=vmax + vpad, cmap=sns.diverging_palette(120, 300, as_cmap=True), square=True, cbar=True, cbar_ax=cbar_ax5, cbar_kws=dict(ticks=cbar_ticks, orientation="vertical"), rasterized=rasterized)
     plt.yticks(ticks=[], labels=[], fontsize=SIZELABEL)
     plt.xticks(ticks=[], labels=[], fontsize=SIZELABEL)
     cbar_ax5.tick_params(**DEF_TICKPROPS_CBAR)
@@ -1387,7 +1528,7 @@ def plot_figure_performance_combining_multiple_replicates(performances, performa
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_figure_performance_combining_multiple_replicates_2x2(performances, performances_combine, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_selected=LINEAR_SELECTED,  loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, shrink_selected=SHRINK_SELECTED, dcorr_shrink_selected=DCORR_SHRINK_SELECTED, save_file=None, ylim=YLIM_SPEARMANR, yticks=YTICKS_SPEARMANR, ylim_bottom=(0.0025, 0.0225), yticks_bottom=[0.005, 0.01, 0.015, 0.02], w_h_ratio=1, alpha=0.75, suptitle=None, double_column=False):
+def plot_figure_performance_combining_multiple_replicates_2x2(performances, performances_combine, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, p=0, q=0, linear_selected=LINEAR_SELECTED,  loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, shrink_selected=SHRINK_SELECTED, dcorr_shrink_selected=DCORR_SHRINK_SELECTED, save_file=None, ylim=YLIM_SPEARMANR, yticks=YTICKS_SPEARMANR, ylim_bottom=(0.0025, 0.0225), yticks_bottom=[0.005, 0.01, 0.015, 0.02], w_h_ratio=1, alpha=0.75, suptitle=None, double_column=False):
     """Plots a figure comparing performances of all methods (SL, est, MPL, linear shrinkage, nonlinear shrinkage) using replicates individually, and combining multiple replicates for inference."""
 
     spearmanr_basic, spearmanr_linear, spearmanr_dcorr, spearmanr_shrink, spearmanr_dcorr_shrink = performances['spearmanr_basic'], performances['spearmanr_linear'], performances['spearmanr_dcorr'], performances['spearmanr_shrink'], performances['spearmanr_dcorr_shrink']
@@ -1413,7 +1554,6 @@ def plot_figure_performance_combining_multiple_replicates_2x2(performances, perf
     nRow, nCol = 2, 2
     fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
 
-    p, q = 0, 0
     xlabel = "Generations of data used"
     ylabel = YLABEL_SPEARMANR_THREE if double_column else YLABEL_SPEARMANR
     ylabel_bottom = YLABEL_MAE
@@ -1642,7 +1782,6 @@ def plot_figure_performance_real_data(data, selection_list, fitness_list, labels
         for _ in gridspecs[1:]:
             axes += [plt.subplot(_[0, 0]), plt.subplot(_[0, 1])]
 
-
     sublabel_x, sublabel_y = -0.5, 1.05
     ylabelpad = 4
 
@@ -1667,14 +1806,14 @@ def plot_figure_performance_real_data(data, selection_list, fitness_list, labels
     xticklabels = ['%.2f'%_ for _ in xticks]
     yticklabels = ['%.2f'%_ for _ in yticks]
     xlabel = 'Selection inferred with\ntrue covariance'
-    # ylabels = ['', 'Selection inferred with\n' + LABEL_SHRINK, 'Selection inferred with\n' + LABEL_NONLINEAR_SHRINK, 'Selection inferred when\nignoring linkage']
-    ylabels = ['', 'Selection inferred\nwith ' + LABEL_EST, 'Selection inferred\nwith ' + LABEL_NONLINEAR, 'Selection inferred when\nignoring linkage']
+    # ylabels = ['', 'Selection inferred with\n' + LABEL_SHRINK, 'Selection inferred with\n' + LABEL_NONLINEAR_SHRINK, 'Selection inferred when\nignoring linkage', 'Selection inferred\nwith Evoracle']
+    ylabels = ['', 'Selection inferred\nwith ' + LABEL_EST, 'Selection inferred\nwith ' + LABEL_NONLINEAR, 'Selection inferred when\nignoring linkage', 'Selection inferred\nwith Evoracle']
     for i, selection in enumerate(selection_list):
         if i == ref_index:
             continue
         plt.sca(axes[ax_index])
         ax = plt.gca()
-        at_bottom = (ax_index >= 5)
+        at_bottom = (ax_index > (len(selection_list) - 2) * 2)
         plot_comparison(selection_list[ref_index], selection, ylim=ylim, xticks=xticks, yticks=yticks, xticklabels=xticklabels if at_bottom else [], yticklabels=yticklabels, ylabel=ylabels[i], ylabelpad=ylabelpad if i < 3 else None, xlabel=xlabel if at_bottom else None, plot_title=False)
         # plt.title(labels[i], fontsize=SIZELABEL)
         ax_index += 2
@@ -1688,13 +1827,13 @@ def plot_figure_performance_real_data(data, selection_list, fitness_list, labels
     xticklabels = ['%.2f'%_ for _ in xticks]
     yticklabels = ['%.2f'%_ for _ in yticks]
     xlabel = 'Fitness inferred with\ntrue covariance'
-    # ylabels = ['', 'Fitness inferred with\n' + LABEL_SHRINK, 'Fitness inferred with\n' + LABEL_NONLINEAR_SHRINK, 'Fitness inferred when\nignoring linkage']
-    ylabels = ['', 'Fitness inferred\nwith ' + LABEL_EST, 'Fitness inferred\nwith ' + LABEL_NONLINEAR, 'Fitness inferred when\nignoring linkage']
+    # ylabels = ['', 'Fitness inferred with\n' + LABEL_SHRINK, 'Fitness inferred with\n' + LABEL_NONLINEAR_SHRINK, 'Fitness inferred when\nignoring linkage', 'Fitness inferred\nwith Evoracle']
+    ylabels = ['', 'Fitness inferred\nwith ' + LABEL_EST, 'Fitness inferred\nwith ' + LABEL_NONLINEAR, 'Fitness inferred when\nignoring linkage', 'Fitness inferred\nwith Evoracle']
     for i, fitness in enumerate(fitness_list):
         if i == ref_index:
             continue
         plt.sca(axes[ax_index])
-        at_bottom = (ax_index >= 5)
+        at_bottom = (ax_index > (len(selection_list) - 2) * 2)
         plot_comparison(fitness_list[ref_index], fitness, ylim=ylim, xticks=xticks, yticks=yticks, xticklabels=xticklabels if at_bottom else [], yticklabels=yticklabels, ylabel=ylabels[i], ylabelpad=ylabelpad if i < 3 else None, xlabel=xlabel if at_bottom else None, plot_title=False)
         # plt.title(labels[i], fontsize=SIZELABEL)
         ax_index += 2
@@ -1814,6 +1953,574 @@ def plot_supplementary_figure_how_covariance_change(windows, variance_of_cov_in_
 
     pass
 
+
+def plot_supplementary_figure_biplot_cov(dic_cov, p=2, q=3, markersize=1, alpha=0.5, xlim_top=(-80, 230), xticks_top=[-50, 0, 50, 100, 150, 200], plot_xticks_top_on_top=False, xlim_bottom=(-0.04, 0.11), xticks_bottom=[-0.02, 0.02, 0.06, 0.1], figsize=None, rasterized=True, save_file=None):
+
+    true_cov, est_cov, linear_cov, nonlinear_cov = dic_cov['int_cov'][p, q], dic_cov['int_dcov'][p, q], dic_cov['int_dcov_linear'][p, q], dic_cov['int_dcov_dcorr_reg'][p, q]
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    nRow, nCol = 2, 3
+    goldh = w * (nRow / nCol)
+    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
+
+    L = len(true_cov)
+    plot_data = [(true_cov, est_cov), (true_cov, linear_cov), (true_cov, nonlinear_cov)]
+    inv_true_cov = np.linalg.inv(true_cov + np.identity(L))
+    plot_data += [(inv_true_cov, np.linalg.inv(cov + np.identity(L))) for _, cov in plot_data]
+
+    titles = ['Estimated v.s. true covariance matrix', 'Estimated & linearly-regularized v.s. true covariance matrix', 'Estimated & nonlinearly-regularized v.s. true covariance matrix', 'Estimated v.s. true inverse covariance matrix', 'Estimated & linearly-regularized v.s. true inverse covariance matrix', 'Estimated & nonlinearly-regularized v.s. true inverse covariance matrix']
+    xlabels = ['Estimated covariance matrix', 'Estimated & linearly-regularized\ncovariance matrix', 'Estimated & nonlinearly-regularized\ncovariance matrix', 'Inverse of estimated\ncovariance matrix', 'Inverse of estimated &\nlinearly-regularized covariance matrix', 'Inverse of estimated &\nnonlinearly-regularized covariance matrix']
+    ylabels = ['True covariance matrix', 'Inverse of true covariance matrix']
+
+    min_values = [np.min([min(np.min(x), np.min(y)) for x, y in plot_data[:3]]), np.min([min(np.min(x), np.min(y)) for x, y in plot_data[3:]])]
+    max_values = [np.max([max(np.max(x), np.max(y)) for x, y in plot_data[:3]]), np.max([max(np.max(x), np.max(y)) for x, y in plot_data[3:]])]
+
+    for i, (y, x) in enumerate(plot_data):
+        plt.sca(axes[i//nCol, i%nCol])
+        ax = plt.gca()
+        at_bottom = (i//nCol == nRow - 1)
+        at_left = (i%nCol == 0)
+        at_right = (i%nCol == nCol - 1)
+        at_top = (i//nCol == 0)
+
+        cov_x, cov_y = [x[i, j] for i in range(L) for j in range(i)], [y[i, j] for i in range(L) for j in range(i)]
+        var_x, var_y = [x[i, i] for i in range(L)], [y[i, i] for i in range(L)]
+        plt.scatter(var_x, var_y, s=markersize, alpha=0.8, label='Diagonal', color=COLOR_VARIANCE, rasterized=rasterized)
+        plt.scatter(cov_x, cov_y, s=markersize, alpha=alpha, label='Off-diagonal', rasterized=rasterized)
+        # min_value = min_values[i//nCol]
+        # max_value = max_values[i//nCol]
+        # plt.plot([min_value, max_value], [min_value, max_value], linestyle='dashed', color='grey', linewidth=SIZELINE)
+        if at_left and at_top:
+            plt.legend(fontsize=SIZELEGEND, frameon=False)
+            plt.text(x=-0.208, y=1.08, s=SUBLABELS[i//nCol], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        if at_left and at_bottom:
+            plt.text(x=-0.208, y=1.05, s=SUBLABELS[i//nCol], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        if at_left:
+            plt.ylabel(ylabels[i//nCol], fontsize=SIZELABEL)
+        else:
+            plt.yticks(ticks=[], labels=[])
+        plt.xlabel(xlabels[i], fontsize=SIZELABEL)
+        if plot_xticks_top_on_top and at_top:
+            ax.xaxis.tick_top()
+            # ax.xaxis.set_label_position('top')
+
+        if at_top:
+            xlim, xticks = xlim_top, xticks_top
+        else:
+            xlim, xticks = xlim_bottom, xticks_bottom
+        plt.xlim(xlim)
+        plt.ylim(xlim)
+        plt.xticks(ticks=xticks, labels=xticks)
+        plt.plot([xlim[0], xlim[1]], [xlim[0], xlim[1]], linestyle='dashed', color='grey', linewidth=SIZELINE)
+
+        if plot_xticks_top_on_top and at_top:
+            ax.tick_params(**DEF_TICKPROPS_TOP)
+        else:
+            ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+
+    plt.subplots_adjust(0.08, 0.1, 0.98, 0.95, hspace=0.3)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_supplementary_figure_performance_with_without_normalization(performances, truncate_list=TRUNCATE, save_file=None):
+    """Plots a figure showing performances with and without calibration when estimating covariance."""
+
+    spearmanr_basic, error_basic, spearmanr_cov_calibrated, error_cov_calibrated, spearmanr_cov_uncalibrated, error_cov_uncalibrated = performances['spearmanr_basic'], performances['error_basic'], performances['spearmanr_cov_calibrated'], performances['error_cov_calibrated'], performances['spearmanr_cov_uncalibrated'], performances['error_cov_uncalibrated']
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / GOLD_RATIO
+    nRow, nCol = 2, 2
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
+
+    spearmanr_cov = np.stack((spearmanr_cov_calibrated[:, :, :, :, :, 0], spearmanr_cov_uncalibrated[:, :, :, :, :, 0]), axis=-1)
+    error_cov = np.stack((error_cov_calibrated[:, :, :, :, :, 0], error_cov_uncalibrated[:, :, :, :, :, 0]), axis=-1)
+
+    p, q = 0, 0
+    # Normalize MAE error of estimated integrated covariances by the integration length (number of generations of the data used)
+    error_cov_per_length = np.array([error_cov[tr, :, :, p, q] / truncate for tr, truncate in enumerate(truncate_list)])
+    # select out est and est(uncalibrated) from all basic methods, and average over all simulations
+    plot_data = [spearmanr_cov[:, :, :, p, q], error_cov_per_length, spearmanr_basic[:, :, :, p, q, 2:4], error_basic[:, :, :, p, q, 2:4]]
+    # plot_data = [spearmanr_basic[:, :, :, p, q, 2:4], error_basic[:, :, :, p, q, 2:4], spearmanr_cov[:, :, :, p, q], error_cov_per_length]
+    plot_data = [np.mean(_, axis=(1, 2)) for _ in plot_data]
+    ylabels = [YLABEL_SPEARMANR_COVARIANCE, r"MAE of estimated covariances", YLABEL_SPEARMANR, r"MAE of inferred selection coefficients"]
+    ylims = [(0.85, 0.93), (0, 0.02), (0.65, 0.95), (0.007, 0.017)]
+    yticks = [np.linspace(0.86, 0.92, 4), np.linspace(0.002, 0.018, 5), np.linspace(0.7, 0.9, 3), np.linspace(0.008, 0.016, 5)]
+
+    for i, data in enumerate(plot_data):
+        plt.sca(axes[i // nCol, i % nCol])
+        ax = plt.gca()
+        for j in range(2, 4):
+            plt.plot(truncate_list, data[:, j - 2],
+                     color=COLOR_BASIC[j], label=LABEL_BASIC[j], marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 3,
+                     linewidth=SIZELINE, linestyle='dashed' if j == 3 else 'solid')
+
+        at_bottom = (i == 2 or i == 3)
+        at_left = (i == 0 or i == 2)
+        plt.xticks(ticks=truncate_list, labels=truncate_list if at_bottom else [])
+        plt.xlabel("Generations of data used" if at_bottom else "", fontsize=SIZELABEL)
+        plt.ylabel(ylabels[i], fontsize=SIZELABEL)
+        plt.ylim(ylims[i])
+        plt.yticks(yticks[i])
+        ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f' if at_left else '%.3f'))
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        if i == 0:
+            plt.legend(loc=4, frameon=False, fontsize=SIZELEGEND)
+        plt.text(x=-0.09, y=1.03, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_supplementary_figure_performance_with_different_time_window(performances_window, window_list=WINDOW, sample_list=SAMPLE, record_list=RECORD, ylim=YLIM_SPEARMANR_COMBINE, yticks=YTICKS_SPEARMANR_COMBINE, ylabel=YLABEL_SPEARMANR, xlabel=XLABEL_WINDOW, max_p=None, max_q=None, combine=False, uncalibrated=False, alpha=1, save_file=None):
+    """Plots a figure showing performances with different choices of time window."""
+
+    spearmanr_basic_window, spearmanr_linear_window, spearmanr_dcorr_window, spearmanr_shrink_window, spearmanr_dcorr_shrink_window = performances_window['spearmanr_basic_window'], performances_window['spearmanr_linear_window'], performances_window['spearmanr_dcorr_window'], performances_window['spearmanr_shrink_window'], performances_window['spearmanr_dcorr_shrink_window']
+
+    w = DOUBLE_COLUMN
+    goldh = w / GOLD_RATIO
+    nRow, nCol = 2, 2
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
+
+    if max_p is None:
+        max_p = len(sample_list) - 1
+    if max_q is None:
+        max_q = len(record_list) - 1
+    pq_list = [(0, 0), (max_p, 0), (0, max_q), (max_p, max_q)]
+
+    if combine:
+        avg_axis = (1)
+    else:
+        avg_axis = (1, 2)
+
+    mean_spearmanr_basic = np.mean(spearmanr_basic_window, axis=avg_axis)
+    mean_spearmanr_linear = np.mean(spearmanr_linear_window, axis=avg_axis)
+    mean_spearmanr_dcorr = np.mean(spearmanr_dcorr_window, axis=avg_axis)
+    mean_spearmanr_shrink = np.mean(spearmanr_shrink_window, axis=avg_axis)
+    mean_spearmanr_dcorr_shrink = np.mean(spearmanr_dcorr_shrink_window, axis=avg_axis)
+
+    xs = np.arange(len(window_list))
+    xticklabels = window_list
+    mean_spearmanr_list =  [
+        mean_spearmanr_basic[:, :, :, 2],  # Est
+        mean_spearmanr_linear, mean_spearmanr_dcorr,
+        # mean_spearmanr_shrink, mean_spearmanr_dcorr_shrink
+    ]
+    ys_lists = [
+        [_[:, p, q] for _ in mean_spearmanr_list] for p, q in pq_list
+    ]
+    labels = LABELS_ALL_METHODS_NORM[2:]
+    # labels[-1] = LABEL_NONLINEAR_SHRINK_TWOLINE
+    colors = COLORS_ALL_METHODS_NORM[2:]
+    markers = MARKERS_ALL_METHODS_NORM[2:]
+
+    for i, (p, q) in enumerate(pq_list):
+        plt.sca(axes[i // nCol, i % nCol])
+        ax = plt.gca()
+
+        ys_list = ys_lists[i]
+
+        # SL and MPL
+        for j in range(2):
+            plt.plot(range(len(window_list)), mean_spearmanr_basic[:, p, q, j], alpha=alpha,
+                     linewidth=SIZELINE, linestyle='dashed', color=COLOR_BASIC[j], label=LABEL_BASIC[j])
+
+        for j, (ys, label, color, marker) in enumerate(zip(ys_list, labels, colors, markers)):
+            plot_scatter_and_line(xs, ys, color=color, s=SIZEDOT + 10, label=label, edgecolors=EDGECOLORS, marker=marker, alpha=alpha, linewidth=SIZELINE)
+
+
+        # est
+        # j = 2
+        # plt.plot(range(len(window_list)), mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
+        #          marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
+
+        # if uncalibrated:
+        #     j = 3
+        #     plt.plot(range(len(window_list)), mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
+        #              marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
+
+        # plt.plot(range(len(window_list)), mean_spearmanr_linear[:, p, q], linewidth=SIZELINE, alpha=alpha,
+        #          marker=MARKER_LINEAR, markersize=SMALLSIZEDOT - 2, color=COLOR_LINEAR, label=LABEL_LINEAR)
+        #
+        # plt.plot(range(len(window_list)), mean_spearmanr_dcorr[:, p, q], linewidth=SIZELINE, alpha=alpha,
+        #          marker=MARKER_NONLINEAR, markersize=SMALLSIZEDOT - 2, color=COLOR_NONLINEAR, label=LABEL_NONLINEAR)
+
+        at_bottom = (i == 2 or i == 3)
+        at_left = (i == 0 or i == 2)
+        plt.xticks(ticks=xs, labels=xticklabels if at_bottom else [])
+        plt.xlabel(xlabel if at_bottom else '', fontsize=SIZELABEL)
+        plt.ylim(ylim)
+        plt.yticks(ticks=yticks, labels=yticks)
+        if not at_left:
+            ax.set_yticklabels([])
+        plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
+        if "MAE" in ylabel:
+            ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.3f'))
+            plt.ylim(0.005, 0.025)
+            plt.yticks(np.linspace(0.007, 0.023, 5))
+            if not at_left:
+                ax.set_yticklabels([])
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        if i == 0:
+            plt.legend(fontsize=SIZELEGEND, frameon=False)
+        if at_left:
+            plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        else:
+            plt.text(x=-0.07, y=1.072, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
+
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_supplementary_figure_performance_example(selections, s=4, n=0, p=0, q=0, xlim=YLIM_SELECTION, xticks=YTICKS_SELECTION, markersize=1, alpha=0.8, hspace=0.2, wspace=0.2, figsize=None, save_file=None):
+
+    selections_basic, selections_linear, selections_shrink, selections_dcorr, selections_dcorr_shrink = selections['selections_basic'], selections['selections_linear'], selections['selections_shrink'], selections['selections_dcorr'], selections['selections_dcorr_shrink']
+
+    selection_true = SS.load_selection(s)
+    xs = selection_true
+
+    selections_plot = [selections_basic, selections_linear, selections_dcorr,
+                       # selections_shrink, selections_dcorr_shrink
+                       ]
+    selections_plot = [_[s, n, p, q] for _ in selections_plot]
+    plot_data = list(selections_plot[0]) + selections_plot[1:]
+    titles = LABELS_ALL_METHODS
+    colors = COLORS_ALL_METHODS
+    xlabel = 'True selection coefficients'
+    ylabel = 'Inferred selection coefficients'
+    xticklabels = [('%.2f' % _) for _ in xticks]
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    # nRow, nCol = 2, 4
+    nRow, nCol = 2, 3
+    goldh = w * (nRow / nCol)
+    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
+
+    for i, (ys, title, color) in enumerate(zip(plot_data, titles, colors)):
+        plt.sca(axes[i//nCol, i%nCol])
+        ax = plt.gca()
+        at_bottom = (i//nCol == nRow - 1)
+        at_left = (i%nCol == 0)
+        at_right = (i%nCol == nCol - 1)
+        at_top = (i//nCol == 0)
+
+        plt.scatter(xs, ys, s=markersize, alpha=alpha, color=color)
+        plt.xlim(xlim)
+        plt.ylim(xlim)
+        plt.xticks(ticks=xticks, labels=xticklabels if at_bottom else [])
+        plt.yticks(ticks=xticks, labels=xticklabels if at_left else [])
+        if at_left:
+            plt.ylabel(ylabel, fontsize=SIZELABEL)
+        if at_bottom:
+            plt.xlabel(xlabel, fontsize=SIZELABEL)
+        plt.plot([xlim[0], xlim[1]], [xlim[0], xlim[1]], linestyle='dashed', color='grey', linewidth=SIZELINE)
+
+        text = f'MAE = %.3f\n' % DP.MAE(xs, ys) + f'{SPEARMANR} = %.2f\n' % stats.spearmanr(xs, ys)[0] + f'{PEARSONR} = %.2f\n' % stats.pearsonr(xs, ys)[0]
+        plt.text(0.06, 0.67, text, fontsize=SIZELABEL, transform=ax.transAxes)
+
+        plt.title(f"{title}", fontsize=SIZELABEL)
+        ax.set_aspect('equal', adjustable='box')
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    plt.subplots_adjust(0.08, 0.1, 0.98, 0.95, hspace=hspace, wspace=wspace)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_supplementary_figure_performance_with_different_loss_gamma(performances, truncate_index=5, ylim=(0.83, 0.929), alpha=0.5, sample_list=SAMPLE, record_list=RECORD, loss_list=LOSS, gamma_list=GAMMA, ylabel=YLABEL_SPEARMANR, save_file=None):
+    """Plots a figure comparing performances of nonlinear shrinkage on correlation matrix using different loss functions & gamma."""
+
+    spearmanr_dcorr = performances['spearmanr_dcorr']
+
+    w = DOUBLE_COLUMN
+    goldh = w / GOLD_RATIO
+    nRow, nCol = 2, 2
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
+
+    max_p, max_q = len(sample_list) - 1, len(record_list) - 1
+    pq_list = [(0, 0), (max_p, 0), (0, max_q), (max_p, max_q)]
+    xticklabels=[r'$10^{-5}$', r'$10^{-4}$', r'$10^{-3}$', r'$10^{-2}$', r'$10^{-1}$', r'1']
+    xlabel = 'Regularization strength of nonlinear shrinkage, ' + r'$\it{\eta}$'
+    yticks = np.arange(int(100 * ylim[0]) // 2 * 2 / 100 + 0.02, ylim[1] + 0.01, 0.02)
+    yticklabels = ['%.2f' % (_) for _ in yticks]
+
+    for i, (p, q) in enumerate(pq_list):
+        plt.sca(axes[i // nCol, i % nCol])
+        ax = plt.gca()
+        for l in range(len(loss_list)):
+            plt.plot(np.log(gamma_list), np.mean(spearmanr_dcorr[truncate_index, :, :, p, q, l, :], axis=(0, 1)), color=COLOR_LOSS[l], linestyle=LINESTYLE_LOSS[l], linewidth=SIZELINE, marker=MARKER_LOSS[l], markersize=SMALLSIZEDOT - 3, label=LABEL_LOSS[l] if (i == 0 and l < 5 or i == 1 and l >= 5) else None, alpha=0.5)
+
+        at_top = (i == 0 or i == 1)
+        at_bottom = (i == 2 or i == 3)
+        at_left = (i == 0 or i == 2)
+        plt.xticks(ticks=np.log(gamma_list), labels=xticklabels if at_bottom else [])
+        plt.xlabel(xlabel if at_bottom else "", fontsize=SIZELABEL)
+        plt.ylim(ylim)
+        plt.yticks(ticks=yticks, labels=yticklabels if at_left else [])
+        plt.ylabel(ylabel if at_left else "", fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        if at_top:
+            plt.legend(fontsize=SIZELEGEND, frameon=False, ncol=1)
+        if at_left:
+            plt.text(x=-0.09, y=1.072, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        else:
+            plt.text(x=-0.07, y=1.072, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        plt.title(f'sample={sample_list[p]}, interval={record_list[q]}', fontsize=SIZELABEL)
+
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_supplementary_figure_performance_all_methods(performances, metrics='error', truncate_index=5, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_list=LINEAR, linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, shrink_selected=SHRINK_SELECTED, dcorr_shrink_selected=DCORR_SHRINK_SELECTED, vmin=0, vmax=0.02, figsize=None, save_file=None):
+    """Plots a figure showing performance with linear and non-lienar shrinkages on correlation matrix, using a particular linear-strength, a particular loss, and a particular gamma, under limited sampling effects."""
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / 2  # w / 2.25
+    # nRow, nCol = 2, 4
+    nRow, nCol = 2, 3
+    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
+
+    metrics_basic, metrics_linear, metrics_dcorr, metrics_shrink, metrics_dcorr_shrink = performances[f'{metrics}_basic'], performances[f'{metrics}_linear'], performances[f'{metrics}_dcorr'], performances[f'{metrics}_shrink'], performances[f'{metrics}_dcorr_shrink']
+
+    matrix_SL = np.mean(metrics_basic[truncate_index, :, :, :, :, 0], axis=(0, 1))
+    matrix_MPL = np.mean(metrics_basic[truncate_index, :, :, :, :, 1], axis=(0, 1))
+    matrix_est = np.mean(metrics_basic[truncate_index, :, :, :, :, 2], axis=(0, 1))
+    matrix_est_uncalibrated = np.mean(metrics_basic[truncate_index, :, :, :, :, 3], axis=(0, 1))
+    matrix_linear = np.mean(metrics_linear[truncate_index, :, :, :, :, linear_selected], axis=(0, 1))
+    matrix_dcorr = np.mean(metrics_dcorr[truncate_index, :, :, :, :, loss_selected, gamma_selected], axis=(0, 1))
+    matrix_shrink = np.mean(metrics_shrink[truncate_index, :, :, :, :, shrink_selected], axis=(0, 1))
+    matrix_dcorr_shrink = np.mean(metrics_dcorr_shrink[truncate_index, :, :, :, :, dcorr_shrink_selected], axis=(0, 1))
+
+    plot_data = [matrix_SL, matrix_MPL, matrix_est,
+                 matrix_est_uncalibrated, matrix_linear, matrix_dcorr,
+                 # matrix_shrink, matrix_dcorr_shrink
+                 ]
+    # titles = LABEL_BASIC + [LABEL_LINEAR, LABEL_NONLINEAR]
+    titles = LABELS_ALL_METHODS
+    ylabel = 'Number of samples drawn\nat each generation'
+    xlabel = 'Time intervals between sampling ' + DELTA_G + ' (generation)'
+
+    for i, data in enumerate(plot_data):
+        plt.sca(axes[i//nCol, i%nCol])
+        ax = plt.gca()
+        sns.heatmap(data, cmap='GnBu', alpha=0.75, cbar=False, annot=True, annot_kws={"fontsize": 6}, vmin=vmin, vmax=vmax, linewidths=HEATMAP_LINEWIDTH)
+
+        at_left = (i % nCol == 0)
+        at_bottom = (i // nCol == nRow - 1)
+        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
+        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list if at_bottom else [])
+        # plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
+        plt.text(x=-0.08, y=1.07, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    add_shared_label(fig, xlabel=xlabel, ylabel=ylabel, ylabelpad=-1, xlabelpad=-1)
+    plt.subplots_adjust(0.071, 0.09, 0.95, 0.95, hspace=0.28, wspace=0.25)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def set_ticks_spines(ax, yspine_position=0.025, xspine_position=-0.05):
+
+    ax.tick_params(**DEF_TICKPROPS)
+    plt.setp(ax.spines.values(), **DEF_AXPROPS)
+    # ax.spines['left'].set_position(('data', yspine_position))
+    # ax.spines['bottom'].set_position(('data', xspine_position))
+    ax.spines['left'].set_position(('axes', yspine_position))
+    ax.spines['bottom'].set_position(('axes', xspine_position))
+
+
+def plot_supplementary_figure_performance_alternative_methods(MAE_cov, spearmanr_cov, MAE_selection, spearmanr_selection, two_columns=True, plot_legend=True, annot=False, save_file=None):
+
+    method_list = ['MPL', 'SL'] + LABELS_ALL_METHODS[2:6] + ['Evoracle', 'haploSep']
+
+    w       = DOUBLE_COLUMN
+    goldh   = 0.60 * w
+    fig     = plt.figure(figsize=(w, goldh))
+
+    box_top   = 0.95
+    box_left  = 0.07
+    box_right = 0.995 if two_columns else 0.94
+    wspace    = 0.3
+
+    global_bottom = 0.17
+    ddy = 0.12
+    dy = (box_top - global_bottom - ddy) / 2
+
+    # for i in range(len(spearmanr_cov[1])):
+    #     spearmanr_cov[1][i] = 0
+    metrics_list = [MAE_cov, spearmanr_cov, MAE_selection, spearmanr_selection]
+
+    if two_columns:
+        boxes = [dict(left=box_left,
+                      right=box_right,
+                      bottom=box_top-((i+1)*dy)-(i*ddy),
+                      top=box_top-(i*dy)-(i*ddy)) for i in range(len(metrics_list)//2)]
+        gridspecs = [gridspec.GridSpec(1, 2, wspace=wspace, **box) for box in boxes]
+        axes = []
+        for _ in gridspecs:
+            axes += [plt.subplot(_[0, 1]), plt.subplot(_[0, 0])]
+    else:
+        boxes = [dict(left=box_left,
+                      right=box_right,
+                      bottom=box_top-((i+1)*dy)-(i*ddy),
+                      top=box_top-(i*dy)-(i*ddy)) for i in range(len(metrics_list))]
+        gridspecs = [gridspec.GridSpec(1, 1, wspace=wspace, **box) for box in boxes]
+        axes = [plt.subplot(gridspec[0, 0]) for gridspec in gridspecs]
+
+    ylim_list = [[0, 10], [0, 1.1], [0, 0.04], [0, 1.1]]
+    yticks_list = [[0, 5, 10], [0, 0.5, 1], [0, 0.02, 0.04], [0, 0.5, 1]]
+    yticklabels_list = [['0', '5', r'$\geq 10$'], ['0', '0.5', '1'], ['0', '0.02', r'$\geq 0.04$'], ['0', '0.5', '1']]
+    ceil_list = [10, None, 0.04, None]
+    floor_list = [None, None, None, None]
+    ylabel_list = ['MAE of inferred\ncovariances', YLABEL_SPEARMANR_COVARIANCE_THREE, 'MAE of inferred\nselection coefficients', YLABEL_SPEARMANR_THREE]
+
+    sublabels = ['B', 'A', 'D', 'C']
+    sublabel_x, sublabel_y = -0.15, 1.05
+    xs = np.arange(0, len(method_list))
+    xlim = [-0.75, 9.4] if two_columns else [-0.8, 9.4]
+    colors    = COLORS_PASTEL
+    fc        = colors[1]  # '#ff6666'  #'#EB4025'
+    ffc       = colors[1]  # '#ff6666'  #'#EB4025'
+    hc        = colors[0]  # '#FFB511'
+    nc        = '#E8E8E8'
+    hfc       = colors[0]  # '#ffcd5e'
+    nfc       = '#f0f0f0'
+    c_alter   = colors[4]
+    methods   = method_list
+    # xticklabels = method_list
+    xticklabels = [str(i) for i in range(len(methods))] if two_columns else METHODS
+
+    colorlist   = [   fc,    hc,    nc,      nc,      nc,         nc,    c_alter, c_alter]
+    fclist      = [  ffc,   hfc,   nfc,     nfc,     nfc,        nfc,    c_alter, c_alter]
+    eclist      = [BKCOLOR for k in range(len(methods))]
+
+    hist_props = dict(lw=SIZELINE/2, width=0.5, align='center', orientation='vertical',
+                      edgecolor=[BKCOLOR for i in range(len(methods))])
+
+    for row, metrics in enumerate(metrics_list):
+        ylim = ylim_list[row]
+        yticks, yticklabels, ylabel = yticks_list[row], yticklabels_list[row], ylabel_list[row]
+        floor, ceil = floor_list[row], ceil_list[row]
+
+        ys = [metrics[i] for i, method in enumerate(method_list)]
+        y_avgs = np.mean(ys, axis=1)
+        ax = axes[row]
+
+        if row == 1:
+            scatter_indices = np.array([_ for _ in range(len(ys)) if _ not in [0, 1]])  # Spearmanr of covariances does not apply to the SL/MPL method
+            # scatter_indices = np.arange(len(ys))
+            plt.sca(ax)
+            na_x, na_y = 0.7, 0.15
+            plt.plot([1, 1], [0.01, na_y - 0.03], linewidth=SIZELINE, color=BKCOLOR)
+            plt.text(na_x, na_y, 'NA', fontsize=SIZESUBLABEL)
+
+            na_x, na_y = -0.3, 0.15
+            plt.plot([0, 0], [0.01, na_y - 0.03], linewidth=SIZELINE, color=BKCOLOR)
+            plt.text(na_x, na_y, 'NA', fontsize=SIZESUBLABEL)
+
+            y_avgs[0] = None
+            y_avgs[1] = None
+        elif row == 0:
+            scatter_indices = np.array([_ for _ in range(len(ys)) if _ not in [0, 1]])
+            plt.sca(ax)
+
+            na_x, na_y = 0.7, 1.5
+            plt.plot([1, 1], [0.1, na_y - 0.3], linewidth=SIZELINE, color=BKCOLOR)
+            plt.text(na_x, na_y, 'NA', fontsize=SIZESUBLABEL)
+
+            na_x, na_y = -0.3, 1.5
+            plt.plot([0, 0], [0.1, na_y - 0.3], linewidth=SIZELINE, color=BKCOLOR)
+            plt.text(na_x, na_y, 'NA', fontsize=SIZESUBLABEL)
+            y_avgs[0] = None
+            y_avgs[1] = None
+        else:
+            scatter_indices = np.arange(0, len(ys))
+
+        pprops = {
+                   # 'colors':      [[colorlist[_] for _ in scatter_indices]],
+                   'colors':      [colorlist],
+                   'xlim':        deepcopy(xlim),
+                   'ylim':        ylim,
+                   'xticks':      xs,
+                   'xticklabels': [] if two_columns and row < 4 else xticklabels,
+                   'yticks':      [],
+                   'theme':       'open',
+                   'hide':        ['left','right'] }
+
+        pprops['yticks'] = yticks
+        pprops['yticklabels'] = yticklabels
+        pprops['ylabel'] = ylabel
+        pprops['hide']   = []
+
+        mp.plot(type='bar', ax=ax, x=[xs], y=[y_avgs], plotprops=hist_props, **pprops)
+        if annot and (row == 3 or row == 2):
+            for x, y in zip(xs, y_avgs):
+                plt.sca(ax)
+                annotation = '%.2f' % y if row == 3 else ('%.3f' % y)
+                plt.text(x - 0.3, min(y * 1.2, ceil * 1.2) if ceil is not None else y * 1.2, annotation, fontsize=SIZESUBLABEL)
+
+        del pprops['colors']
+
+        ys = np.array(ys)
+        if floor is not None:
+            ys[ys <= floor] = floor
+        if ceil is not None:
+            ys[ys >= ceil] = ceil
+
+        pprops['facecolor'] = ['None' for _c1 in range(len(xs))]
+        pprops['edgecolor'] = [eclist[_] for _ in scatter_indices]
+        # size_of_point = 2.
+        size_of_point = 1.5 if two_columns else 4.
+        sprops = dict(lw=AXWIDTH, s=size_of_point, marker='o', alpha=1.0)
+
+        temp_x = [[xs[_c1] + np.random.normal(0, 0.04) for _c2 in range(len(ys[_c1]))] for _c1 in scatter_indices]
+        mp.scatter(ax=ax, x=temp_x, y=ys[scatter_indices], plotprops=sprops, **pprops)
+
+        pprops['facecolor'] = [fclist[_] for _ in scatter_indices]
+        sprops = dict(lw=0, s=size_of_point, marker='o', alpha=1)
+        mp.scatter(ax=ax, x=temp_x, y=ys[scatter_indices], plotprops=sprops, **pprops)
+        plt.sca(ax)
+        plt.ylabel(ylabel, labelpad=-6.1 if row == 2 else 0)
+        set_ticks_spines(ax)
+        if two_columns and row >= 2:
+            plt.xticks(ticks=xs, labels=xticklabels, rotation=0)
+        plt.text(x=sublabel_x, y=sublabel_y, s=sublabels[row], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    if two_columns and plot_legend:
+        legend_dy =  1.3
+        legend_l  =  2  # num of lines
+        legend_x  = -12.97
+        legend_y  = -17.5
+        legend_dx =  5
+        legend_d  = -0.5
+        for k, method in enumerate(methods):
+            axes[0].text(legend_x + legend_d + (k//legend_l * legend_dx), legend_y - (k%legend_l * legend_dy), k, ha='center', va='center', **DEF_LABELPROPS)
+            axes[0].text(legend_x + (k//legend_l * legend_dx), legend_y - (k%legend_l * legend_dy), method, ha='left', va='center', **DEF_LABELPROPS)
+
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+
+############# ADDITIONAL FIGURES #############
 
 def plot_supplementary_figure_time_series_covariance(s=4, n=0, sample=1000, record=1, highlight_pairs=[(0, 1), (14, 30), (24, 44)], highlight_colors=[C_FOREST, C_BEN, C_DEL], alpha=0.5, xticks=np.arange(0, 701, 100), ylabelpad=6, xlim=XLIM_GENERATION, suggest_pairs=False, rasterized=True, save_file=None):
 
@@ -2070,10 +2777,6 @@ def plot_additional_figure_dxdx(s=4, n=0, sample=1000, record=1, window=20, high
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-# def x_subscript_i(i):
-#     return r'$x_$'
-
-
 def plot_additional_figure_dxdx_across_generations(dx_dx_across_gens_list, gens, s=4, sample=1000, record=1, vmin=-0.00035, vmax=0.0002, alpha=0.5, rasterized=True, save_file=None):
 
     # dx_dx_across_gens_list = []
@@ -2136,7 +2839,7 @@ def plot_additional_figure_dxdx_across_generations_2(dx_dx_across_gens_list, tau
 
     w = DOUBLE_COLUMN
     nRow, nCol = 1, 1
-    goldh = w
+    goldh = w / GOLD_RATIO
     fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
 
     delta = r'$<\Delta x_i(t) \Delta x_j(t+\tau)>$' + ', ' + r'$t \in [10, 60]$'
@@ -2166,561 +2869,11 @@ def plot_additional_figure_dxdx_across_generations_2(dx_dx_across_gens_list, tau
         plt.yscale('log', nonposy='clip')
 
 
-    plt.subplots_adjust(0.1, 0.06, 0.9, 0.9, hspace=0.15, wspace=0.15)
+    plt.subplots_adjust(0.08, 0.08, 0.95, 0.95, hspace=0.15, wspace=0.15)
     plt.show()
     if save_file:
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
-
-
-
-def plot_supplementary_figure_biplot_cov(dic_cov, p=2, q=3, markersize=1, alpha=0.5, xlim_top=(-80, 230), xticks_top=[-50, 0, 50, 100, 150, 200], plot_xticks_top_on_top=False, xlim_bottom=(-0.04, 0.11), xticks_bottom=[-0.02, 0.02, 0.06, 0.1], figsize=None, rasterized=True, save_file=None):
-
-    true_cov, est_cov, linear_cov, nonlinear_cov = dic_cov['int_cov'][p, q], dic_cov['int_dcov'][p, q], dic_cov['int_dcov_linear'][p, q], dic_cov['int_dcov_dcorr_reg'][p, q]
-
-    w = DOUBLE_COLUMN #SLIDE_WIDTH
-    nRow, nCol = 2, 3
-    goldh = w * (nRow / nCol)
-    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
-
-    L = len(true_cov)
-    plot_data = [(true_cov, est_cov), (true_cov, linear_cov), (true_cov, nonlinear_cov)]
-    inv_true_cov = np.linalg.inv(true_cov + np.identity(L))
-    plot_data += [(inv_true_cov, np.linalg.inv(cov + np.identity(L))) for _, cov in plot_data]
-
-    titles = ['Estimated v.s. true covariance matrix', 'Estimated & linearly-regularized v.s. true covariance matrix', 'Estimated & nonlinearly-regularized v.s. true covariance matrix', 'Estimated v.s. true inverse covariance matrix', 'Estimated & linearly-regularized v.s. true inverse covariance matrix', 'Estimated & nonlinearly-regularized v.s. true inverse covariance matrix']
-    xlabels = ['Estimated covariance matrix', 'Estimated & linearly-regularized\ncovariance matrix', 'Estimated & nonlinearly-regularized\ncovariance matrix', 'Inverse of estimated\ncovariance matrix', 'Inverse of estimated &\nlinearly-regularized covariance matrix', 'Inverse of estimated &\nnonlinearly-regularized covariance matrix']
-    ylabels = ['True covariance matrix', 'Inverse of true covariance matrix']
-
-    min_values = [np.min([min(np.min(x), np.min(y)) for x, y in plot_data[:3]]), np.min([min(np.min(x), np.min(y)) for x, y in plot_data[3:]])]
-    max_values = [np.max([max(np.max(x), np.max(y)) for x, y in plot_data[:3]]), np.max([max(np.max(x), np.max(y)) for x, y in plot_data[3:]])]
-
-    for i, (y, x) in enumerate(plot_data):
-        plt.sca(axes[i//nCol, i%nCol])
-        ax = plt.gca()
-        at_bottom = (i//nCol == nRow - 1)
-        at_left = (i%nCol == 0)
-        at_right = (i%nCol == nCol - 1)
-        at_top = (i//nCol == 0)
-
-        cov_x, cov_y = [x[i, j] for i in range(L) for j in range(i)], [y[i, j] for i in range(L) for j in range(i)]
-        var_x, var_y = [x[i, i] for i in range(L)], [y[i, i] for i in range(L)]
-        plt.scatter(var_x, var_y, s=markersize, alpha=0.8, label='Diagonal', color=COLOR_VARIANCE, rasterized=rasterized)
-        plt.scatter(cov_x, cov_y, s=markersize, alpha=alpha, label='Off-diagonal', rasterized=rasterized)
-        # min_value = min_values[i//nCol]
-        # max_value = max_values[i//nCol]
-        # plt.plot([min_value, max_value], [min_value, max_value], linestyle='dashed', color='grey', linewidth=SIZELINE)
-        if at_left and at_top:
-            plt.legend(fontsize=SIZELEGEND, frameon=False)
-            plt.text(x=-0.208, y=1.08, s=SUBLABELS[i//nCol], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        if at_left and at_bottom:
-            plt.text(x=-0.208, y=1.05, s=SUBLABELS[i//nCol], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        if at_left:
-            plt.ylabel(ylabels[i//nCol], fontsize=SIZELABEL)
-        else:
-            plt.yticks(ticks=[], labels=[])
-        plt.xlabel(xlabels[i], fontsize=SIZELABEL)
-        if plot_xticks_top_on_top and at_top:
-            ax.xaxis.tick_top()
-            # ax.xaxis.set_label_position('top')
-
-        if at_top:
-            xlim, xticks = xlim_top, xticks_top
-        else:
-            xlim, xticks = xlim_bottom, xticks_bottom
-        plt.xlim(xlim)
-        plt.ylim(xlim)
-        plt.xticks(ticks=xticks, labels=xticks)
-        plt.plot([xlim[0], xlim[1]], [xlim[0], xlim[1]], linestyle='dashed', color='grey', linewidth=SIZELINE)
-
-        if plot_xticks_top_on_top and at_top:
-            ax.tick_params(**DEF_TICKPROPS_TOP)
-        else:
-            ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-
-    plt.subplots_adjust(0.08, 0.1, 0.98, 0.95, hspace=0.3)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_supplementary_figure_performance_with_without_normalization(performances, truncate_list=TRUNCATE, save_file=None):
-    """Plots a figure showing performances with and without calibration when estimating covariance."""
-
-    spearmanr_basic, error_basic, spearmanr_cov_calibrated, error_cov_calibrated, spearmanr_cov_uncalibrated, error_cov_uncalibrated = performances['spearmanr_basic'], performances['error_basic'], performances['spearmanr_cov_calibrated'], performances['error_cov_calibrated'], performances['spearmanr_cov_uncalibrated'], performances['error_cov_uncalibrated']
-
-    w = DOUBLE_COLUMN #SLIDE_WIDTH
-    goldh = w / GOLD_RATIO
-    nRow, nCol = 2, 2
-    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
-
-    spearmanr_cov = np.stack((spearmanr_cov_calibrated[:, :, :, :, :, 0], spearmanr_cov_uncalibrated[:, :, :, :, :, 0]), axis=-1)
-    error_cov = np.stack((error_cov_calibrated[:, :, :, :, :, 0], error_cov_uncalibrated[:, :, :, :, :, 0]), axis=-1)
-
-    p, q = 0, 0
-    # Normalize MAE error of estimated integrated covariances by the integration length (number of generations of the data used)
-    error_cov_per_length = np.array([error_cov[tr, :, :, p, q] / truncate for tr, truncate in enumerate(truncate_list)])
-    # select out est and est(uncalibrated) from all basic methods, and average over all simulations
-    plot_data = [spearmanr_cov[:, :, :, p, q], error_cov_per_length, spearmanr_basic[:, :, :, p, q, 2:4], error_basic[:, :, :, p, q, 2:4]]
-    # plot_data = [spearmanr_basic[:, :, :, p, q, 2:4], error_basic[:, :, :, p, q, 2:4], spearmanr_cov[:, :, :, p, q], error_cov_per_length]
-    plot_data = [np.mean(_, axis=(1, 2)) for _ in plot_data]
-    ylabels = [YLABEL_SPEARMANR_COVARIANCE, r"MAE of estimated covariances", YLABEL_SPEARMANR, r"MAE of inferred selection coefficients"]
-    ylims = [(0.85, 0.93), (0, 0.02), (0.65, 0.95), (0.007, 0.017)]
-    yticks = [np.linspace(0.86, 0.92, 4), np.linspace(0.002, 0.018, 5), np.linspace(0.7, 0.9, 3), np.linspace(0.008, 0.016, 5)]
-
-    for i, data in enumerate(plot_data):
-        plt.sca(axes[i // nCol, i % nCol])
-        ax = plt.gca()
-        for j in range(2, 4):
-            plt.plot(truncate_list, data[:, j - 2],
-                     color=COLOR_BASIC[j], label=LABEL_BASIC[j], marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 3,
-                     linewidth=SIZELINE, linestyle='dashed' if j == 3 else 'solid')
-
-        at_bottom = (i == 2 or i == 3)
-        at_left = (i == 0 or i == 2)
-        plt.xticks(ticks=truncate_list, labels=truncate_list if at_bottom else [])
-        plt.xlabel("Generations of data used" if at_bottom else "", fontsize=SIZELABEL)
-        plt.ylabel(ylabels[i], fontsize=SIZELABEL)
-        plt.ylim(ylims[i])
-        plt.yticks(yticks[i])
-        ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f' if at_left else '%.3f'))
-        ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-        if i == 0:
-            plt.legend(loc=4, frameon=False, fontsize=SIZELEGEND)
-        plt.text(x=-0.09, y=1.03, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_supplementary_figure_performance_with_different_time_window(performances_window, window_list=WINDOW, sample_list=SAMPLE, record_list=RECORD, ylim=YLIM_SPEARMANR_COMBINE, yticks=YTICKS_SPEARMANR_COMBINE, ylabel=YLABEL_SPEARMANR, xlabel=XLABEL_WINDOW, max_p=None, max_q=None, combine=False, uncalibrated=False, alpha=1, save_file=None):
-    """Plots a figure showing performances with different choices of time window."""
-
-    spearmanr_basic_window, spearmanr_linear_window, spearmanr_dcorr_window, spearmanr_shrink_window, spearmanr_dcorr_shrink_window = performances_window['spearmanr_basic_window'], performances_window['spearmanr_linear_window'], performances_window['spearmanr_dcorr_window'], performances_window['spearmanr_shrink_window'], performances_window['spearmanr_dcorr_shrink_window']
-
-    w = DOUBLE_COLUMN
-    goldh = w / GOLD_RATIO
-    nRow, nCol = 2, 2
-    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
-
-    if max_p is None:
-        max_p = len(sample_list) - 1
-    if max_q is None:
-        max_q = len(record_list) - 1
-    pq_list = [(0, 0), (max_p, 0), (0, max_q), (max_p, max_q)]
-
-    if combine:
-        avg_axis = (1)
-    else:
-        avg_axis = (1, 2)
-
-    mean_spearmanr_basic = np.mean(spearmanr_basic_window, axis=avg_axis)
-    mean_spearmanr_linear = np.mean(spearmanr_linear_window, axis=avg_axis)
-    mean_spearmanr_dcorr = np.mean(spearmanr_dcorr_window, axis=avg_axis)
-    mean_spearmanr_shrink = np.mean(spearmanr_shrink_window, axis=avg_axis)
-    mean_spearmanr_dcorr_shrink = np.mean(spearmanr_dcorr_shrink_window, axis=avg_axis)
-
-    xs = np.arange(len(window_list))
-    xticklabels = window_list
-    mean_spearmanr_list =  [
-        mean_spearmanr_basic[:, :, :, 2],  # Est
-        mean_spearmanr_linear, mean_spearmanr_dcorr,
-        # mean_spearmanr_shrink, mean_spearmanr_dcorr_shrink
-    ]
-    ys_lists = [
-        [_[:, p, q] for _ in mean_spearmanr_list] for p, q in pq_list
-    ]
-    labels = LABELS_ALL_METHODS_NORM[2:]
-    # labels[-1] = LABEL_NONLINEAR_SHRINK_TWOLINE
-    colors = COLORS_ALL_METHODS_NORM[2:]
-    markers = MARKERS_ALL_METHODS_NORM[2:]
-
-    for i, (p, q) in enumerate(pq_list):
-        plt.sca(axes[i // nCol, i % nCol])
-        ax = plt.gca()
-
-        ys_list = ys_lists[i]
-
-        # SL and MPL
-        for j in range(2):
-            plt.plot(range(len(window_list)), mean_spearmanr_basic[:, p, q, j], alpha=alpha,
-                     linewidth=SIZELINE, linestyle='dashed', color=COLOR_BASIC[j], label=LABEL_BASIC[j])
-
-        for j, (ys, label, color, marker) in enumerate(zip(ys_list, labels, colors, markers)):
-            plot_scatter_and_line(xs, ys, color=color, s=SIZEDOT + 10, label=label, edgecolors=EDGECOLORS, marker=marker, alpha=alpha, linewidth=SIZELINE)
-
-
-        # est
-        # j = 2
-        # plt.plot(range(len(window_list)), mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
-        #          marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
-
-        # if uncalibrated:
-        #     j = 3
-        #     plt.plot(range(len(window_list)), mean_spearmanr_basic[:, p, q, j], linewidth=SIZELINE, alpha=alpha,
-        #              marker=MARKER_BASIC[j], markersize=SMALLSIZEDOT - 2, color=COLOR_BASIC[j], label=LABEL_BASIC[j])
-
-        # plt.plot(range(len(window_list)), mean_spearmanr_linear[:, p, q], linewidth=SIZELINE, alpha=alpha,
-        #          marker=MARKER_LINEAR, markersize=SMALLSIZEDOT - 2, color=COLOR_LINEAR, label=LABEL_LINEAR)
-        #
-        # plt.plot(range(len(window_list)), mean_spearmanr_dcorr[:, p, q], linewidth=SIZELINE, alpha=alpha,
-        #          marker=MARKER_NONLINEAR, markersize=SMALLSIZEDOT - 2, color=COLOR_NONLINEAR, label=LABEL_NONLINEAR)
-
-        at_bottom = (i == 2 or i == 3)
-        at_left = (i == 0 or i == 2)
-        plt.xticks(ticks=xs, labels=xticklabels if at_bottom else [])
-        plt.xlabel(xlabel if at_bottom else '', fontsize=SIZELABEL)
-        plt.ylim(ylim)
-        plt.yticks(ticks=yticks, labels=yticks)
-        if not at_left:
-            ax.set_yticklabels([])
-        plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
-        if "MAE" in ylabel:
-            ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.3f'))
-            plt.ylim(0.005, 0.025)
-            plt.yticks(np.linspace(0.007, 0.023, 5))
-            if not at_left:
-                ax.set_yticklabels([])
-        ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-        if i == 0:
-            plt.legend(fontsize=SIZELEGEND, frameon=False)
-        if at_left:
-            plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        else:
-            plt.text(x=-0.07, y=1.072, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
-
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_supplementary_figure_performance_example(selections, s=4, n=0, p=0, q=0, xlim=YLIM_SELECTION, xticks=YTICKS_SELECTION, markersize=1, alpha=0.8, hspace=0.2, wspace=0.2, figsize=None, save_file=None):
-
-    selections_basic, selections_linear, selections_shrink, selections_dcorr, selections_dcorr_shrink = selections['selections_basic'], selections['selections_linear'], selections['selections_shrink'], selections['selections_dcorr'], selections['selections_dcorr_shrink']
-
-    selection_true = SS.load_selection(s)
-    xs = selection_true
-
-    selections_plot = [selections_basic, selections_linear, selections_dcorr,
-                       # selections_shrink, selections_dcorr_shrink
-                       ]
-    selections_plot = [_[s, n, p, q] for _ in selections_plot]
-    plot_data = list(selections_plot[0]) + selections_plot[1:]
-    titles = LABELS_ALL_METHODS
-    colors = COLORS_ALL_METHODS
-    xlabel = 'True selections'
-    ylabel = 'Inferred selections'
-    xticklabels = [('%.2f' % _) for _ in xticks]
-
-    w = DOUBLE_COLUMN #SLIDE_WIDTH
-    # nRow, nCol = 2, 4
-    nRow, nCol = 2, 3
-    goldh = w * (nRow / nCol)
-    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
-
-    for i, (ys, title, color) in enumerate(zip(plot_data, titles, colors)):
-        plt.sca(axes[i//nCol, i%nCol])
-        ax = plt.gca()
-        at_bottom = (i//nCol == nRow - 1)
-        at_left = (i%nCol == 0)
-        at_right = (i%nCol == nCol - 1)
-        at_top = (i//nCol == 0)
-
-        plt.scatter(xs, ys, s=markersize, alpha=alpha, color=color)
-        plt.xlim(xlim)
-        plt.ylim(xlim)
-        plt.xticks(ticks=xticks, labels=xticklabels if at_bottom else [])
-        plt.yticks(ticks=xticks, labels=xticklabels if at_left else [])
-        if at_left:
-            plt.ylabel(ylabel, fontsize=SIZELABEL)
-        if at_bottom:
-            plt.xlabel(xlabel, fontsize=SIZELABEL)
-        plt.plot([xlim[0], xlim[1]], [xlim[0], xlim[1]], linestyle='dashed', color='grey', linewidth=SIZELINE)
-
-        text = f'MAE = %.3f\n' % DP.MAE(xs, ys) + f'{SPEARMANR} = %.2f\n' % stats.spearmanr(xs, ys)[0] + f'{PEARSONR} = %.2f\n' % stats.pearsonr(xs, ys)[0]
-        plt.text(0.06, 0.67, text, fontsize=SIZELABEL, transform=ax.transAxes)
-
-        plt.title(f"{title}", fontsize=SIZELABEL)
-        ax.set_aspect('equal', adjustable='box')
-        ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-
-    plt.subplots_adjust(0.08, 0.1, 0.98, 0.95, hspace=hspace, wspace=wspace)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_supplementary_figure_performance_with_different_loss_gamma(performances, truncate_index=5, ylim=(0.83, 0.929), alpha=0.5, sample_list=SAMPLE, record_list=RECORD, loss_list=LOSS, gamma_list=GAMMA, ylabel=YLABEL_SPEARMANR, save_file=None):
-    """Plots a figure comparing performances of nonlinear shrinkage on correlation matrix using different loss functions & gamma."""
-
-    spearmanr_dcorr = performances['spearmanr_dcorr']
-
-    w = DOUBLE_COLUMN
-    goldh = w / GOLD_RATIO
-    nRow, nCol = 2, 2
-    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
-
-    max_p, max_q = len(sample_list) - 1, len(record_list) - 1
-    pq_list = [(0, 0), (max_p, 0), (0, max_q), (max_p, max_q)]
-    xticklabels=[r'$10^{-5}$', r'$10^{-4}$', r'$10^{-3}$', r'$10^{-2}$', r'$10^{-1}$', r'1']
-    xlabel = 'Regularization strength of nonlinear shrinkage, ' + r'$\it{\eta}$'
-    yticks = np.arange(int(100 * ylim[0]) // 2 * 2 / 100 + 0.02, ylim[1] + 0.01, 0.02)
-    yticklabels = ['%.2f' % (_) for _ in yticks]
-
-    for i, (p, q) in enumerate(pq_list):
-        plt.sca(axes[i // nCol, i % nCol])
-        ax = plt.gca()
-        for l in range(len(loss_list)):
-            plt.plot(np.log(gamma_list), np.mean(spearmanr_dcorr[truncate_index, :, :, p, q, l, :], axis=(0, 1)), color=COLOR_LOSS[l], linestyle=LINESTYLE_LOSS[l], linewidth=SIZELINE, marker=MARKER_LOSS[l], markersize=SMALLSIZEDOT - 3, label=LABEL_LOSS[l] if (i == 0 and l < 5 or i == 1 and l >= 5) else None, alpha=0.5)
-
-        at_top = (i == 0 or i == 1)
-        at_bottom = (i == 2 or i == 3)
-        at_left = (i == 0 or i == 2)
-        plt.xticks(ticks=np.log(gamma_list), labels=xticklabels if at_bottom else [])
-        plt.xlabel(xlabel if at_bottom else "", fontsize=SIZELABEL)
-        plt.ylim(ylim)
-        plt.yticks(ticks=yticks, labels=yticklabels if at_left else [])
-        plt.ylabel(ylabel if at_left else "", fontsize=SIZELABEL)
-        ax.tick_params(**DEF_TICKPROPS)
-        plt.setp(ax.spines.values(), **DEF_AXPROPS)
-        if at_top:
-            plt.legend(fontsize=SIZELEGEND, frameon=False, ncol=1)
-        if at_left:
-            plt.text(x=-0.09, y=1.072, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        else:
-            plt.text(x=-0.07, y=1.072, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-        plt.title(f'sample={sample_list[p]}, interval={record_list[q]}', fontsize=SIZELABEL)
-
-    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def plot_supplementary_figure_performance_all_methods(performances, metrics='error', truncate_index=5, truncate_list=TRUNCATE, sample_list=SAMPLE, record_list=RECORD, linear_list=LINEAR, linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, shrink_selected=SHRINK_SELECTED, dcorr_shrink_selected=DCORR_SHRINK_SELECTED, vmin=0, vmax=0.02, figsize=None, save_file=None):
-    """Plots a figure showing performance with linear and non-lienar shrinkages on correlation matrix, using a particular linear-strength, a particular loss, and a particular gamma, under limited sampling effects."""
-
-    w = DOUBLE_COLUMN #SLIDE_WIDTH
-    goldh = w / 2  # w / 2.25
-    # nRow, nCol = 2, 4
-    nRow, nCol = 2, 3
-    fig, axes = plt.subplots(nRow, nCol, figsize=figsize if figsize is not None else (w, goldh))
-
-    metrics_basic, metrics_linear, metrics_dcorr, metrics_shrink, metrics_dcorr_shrink = performances[f'{metrics}_basic'], performances[f'{metrics}_linear'], performances[f'{metrics}_dcorr'], performances[f'{metrics}_shrink'], performances[f'{metrics}_dcorr_shrink']
-
-    matrix_SL = np.mean(metrics_basic[truncate_index, :, :, :, :, 0], axis=(0, 1))
-    matrix_MPL = np.mean(metrics_basic[truncate_index, :, :, :, :, 1], axis=(0, 1))
-    matrix_est = np.mean(metrics_basic[truncate_index, :, :, :, :, 2], axis=(0, 1))
-    matrix_est_uncalibrated = np.mean(metrics_basic[truncate_index, :, :, :, :, 3], axis=(0, 1))
-    matrix_linear = np.mean(metrics_linear[truncate_index, :, :, :, :, linear_selected], axis=(0, 1))
-    matrix_dcorr = np.mean(metrics_dcorr[truncate_index, :, :, :, :, loss_selected, gamma_selected], axis=(0, 1))
-    matrix_shrink = np.mean(metrics_shrink[truncate_index, :, :, :, :, shrink_selected], axis=(0, 1))
-    matrix_dcorr_shrink = np.mean(metrics_dcorr_shrink[truncate_index, :, :, :, :, dcorr_shrink_selected], axis=(0, 1))
-
-    plot_data = [matrix_SL, matrix_MPL, matrix_est,
-                 matrix_est_uncalibrated, matrix_linear, matrix_dcorr,
-                 # matrix_shrink, matrix_dcorr_shrink
-                 ]
-    # titles = LABEL_BASIC + [LABEL_LINEAR, LABEL_NONLINEAR]
-    titles = LABELS_ALL_METHODS
-    ylabel = 'Number of samples drawn\nat each generation'
-    xlabel = 'Time intervals between sampling ' + DELTA_G + ' (generation)'
-
-    for i, data in enumerate(plot_data):
-        plt.sca(axes[i//nCol, i%nCol])
-        ax = plt.gca()
-        sns.heatmap(data, cmap='GnBu', alpha=0.75, cbar=False, annot=True, annot_kws={"fontsize": 6}, vmin=vmin, vmax=vmax, linewidths=HEATMAP_LINEWIDTH)
-
-        at_left = (i % nCol == 0)
-        at_bottom = (i // nCol == nRow - 1)
-        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
-        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list if at_bottom else [])
-        # plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
-        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
-        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
-        plt.text(x=-0.08, y=1.07, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-
-    add_shared_label(fig, xlabel=xlabel, ylabel=ylabel, ylabelpad=-1, xlabelpad=-1)
-    plt.subplots_adjust(0.071, 0.09, 0.95, 0.95, hspace=0.28, wspace=0.25)
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-def set_ticks_spines(ax, yspine_position=0.025, xspine_position=-0.05):
-
-    ax.tick_params(**DEF_TICKPROPS)
-    plt.setp(ax.spines.values(), **DEF_AXPROPS)
-    # ax.spines['left'].set_position(('data', yspine_position))
-    # ax.spines['bottom'].set_position(('data', xspine_position))
-    ax.spines['left'].set_position(('axes', yspine_position))
-    ax.spines['bottom'].set_position(('axes', xspine_position))
-
-
-def plot_supplementary_figure_performance_alternative_methods(MAE_cov, spearmanr_cov, MAE_selection, spearmanr_selection, two_columns=True, plot_legend=True, annot=False, save_file=None):
-
-    method_list = ['MPL', 'SL'] + LABELS_ALL_METHODS[2:6] + ['Evoracle', 'haploSep']
-
-    w       = DOUBLE_COLUMN
-    goldh   = 0.60 * w
-    fig     = plt.figure(figsize=(w, goldh))
-
-    box_top   = 0.95
-    box_left  = 0.07
-    box_right = 0.995 if two_columns else 0.94
-    wspace    = 0.3
-
-    global_bottom = 0.17
-    ddy = 0.12
-    dy = (box_top - global_bottom - ddy) / 2
-
-    # for i in range(len(spearmanr_cov[1])):
-    #     spearmanr_cov[1][i] = 0
-    metrics_list = [MAE_cov, spearmanr_cov, MAE_selection, spearmanr_selection]
-
-    if two_columns:
-        boxes = [dict(left=box_left,
-                      right=box_right,
-                      bottom=box_top-((i+1)*dy)-(i*ddy),
-                      top=box_top-(i*dy)-(i*ddy)) for i in range(len(metrics_list)//2)]
-        gridspecs = [gridspec.GridSpec(1, 2, wspace=wspace, **box) for box in boxes]
-        axes = []
-        for _ in gridspecs:
-            axes += [plt.subplot(_[0, 1]), plt.subplot(_[0, 0])]
-    else:
-        boxes = [dict(left=box_left,
-                      right=box_right,
-                      bottom=box_top-((i+1)*dy)-(i*ddy),
-                      top=box_top-(i*dy)-(i*ddy)) for i in range(len(metrics_list))]
-        gridspecs = [gridspec.GridSpec(1, 1, wspace=wspace, **box) for box in boxes]
-        axes = [plt.subplot(gridspec[0, 0]) for gridspec in gridspecs]
-
-    ylim_list = [[0, 10], [0, 1.1], [0, 0.04], [0, 1.1]]
-    yticks_list = [[0, 5, 10], [0, 0.5, 1], [0, 0.02, 0.04], [0, 0.5, 1]]
-    yticklabels_list = [['0', '5', r'$\geq 10$'], ['0', '0.5', '1'], ['0', '0.02', r'$\geq 0.04$'], ['0', '0.5', '1']]
-    ceil_list = [10, None, 0.04, None]
-    floor_list = [None, None, None, None]
-    ylabel_list = ['MAE of inferred\ncovariances', YLABEL_SPEARMANR_COVARIANCE_THREE, 'MAE of inferred\nselection coefficients', YLABEL_SPEARMANR_THREE]
-
-    sublabels = ['B', 'A', 'D', 'C']
-    sublabel_x, sublabel_y = -0.15, 1.05
-    xs = np.arange(0, len(method_list))
-    xlim = [-0.75, 9.4] if two_columns else [-0.8, 9.4]
-    colors    = COLORS_PASTEL
-    fc        = colors[1]  # '#ff6666'  #'#EB4025'
-    ffc       = colors[1]  # '#ff6666'  #'#EB4025'
-    hc        = colors[0]  # '#FFB511'
-    nc        = '#E8E8E8'
-    hfc       = colors[0]  # '#ffcd5e'
-    nfc       = '#f0f0f0'
-    c_alter   = colors[4]
-    methods   = method_list
-    # xticklabels = method_list
-    xticklabels = [str(i) for i in range(len(methods))] if two_columns else METHODS
-
-    colorlist   = [   fc,    hc,    nc,      nc,      nc,         nc,    c_alter, c_alter]
-    fclist      = [  ffc,   hfc,   nfc,     nfc,     nfc,        nfc,    c_alter, c_alter]
-    eclist      = [BKCOLOR for k in range(len(methods))]
-
-    hist_props = dict(lw=SIZELINE/2, width=0.5, align='center', orientation='vertical',
-                      edgecolor=[BKCOLOR for i in range(len(methods))])
-
-    for row, metrics in enumerate(metrics_list):
-        ylim = ylim_list[row]
-        yticks, yticklabels, ylabel = yticks_list[row], yticklabels_list[row], ylabel_list[row]
-        floor, ceil = floor_list[row], ceil_list[row]
-
-        ys = [metrics[i] for i, method in enumerate(method_list)]
-        y_avgs = np.mean(ys, axis=1)
-        ax = axes[row]
-
-        if row == 1:
-            scatter_indices = np.array([_ for _ in range(len(ys)) if _ != 1])  # Spearmanr of covariances does not apply to the SL method
-            # scatter_indices = np.arange(len(ys))
-            plt.sca(ax)
-            na_x, na_y = 0.7, 0.15
-            plt.plot([1, 1], [0.01, na_y - 0.03], linewidth=SIZELINE, color=BKCOLOR)
-            plt.text(na_x, na_y, 'NA', fontsize=SIZESUBLABEL)
-        else:
-            scatter_indices = np.arange(0, len(ys))
-
-        pprops = {
-                   # 'colors':      [[colorlist[_] for _ in scatter_indices]],
-                   'colors':      [colorlist],
-                   'xlim':        deepcopy(xlim),
-                   'ylim':        ylim,
-                   'xticks':      xs,
-                   'xticklabels': [] if two_columns and row < 4 else xticklabels,
-                   'yticks':      [],
-                   'theme':       'open',
-                   'hide':        ['left','right'] }
-
-        pprops['yticks'] = yticks
-        pprops['yticklabels'] = yticklabels
-        pprops['ylabel'] = ylabel
-        pprops['hide']   = []
-
-        mp.plot(type='bar', ax=ax, x=[xs], y=[y_avgs], plotprops=hist_props, **pprops)
-        if annot and (row == 3 or row == 2):
-            for x, y in zip(xs, y_avgs):
-                plt.sca(ax)
-                annotation = '%.2f' % y if row == 3 else ('%.3f' % y)
-                plt.text(x - 0.3, min(y * 1.2, ceil * 1.2) if ceil is not None else y * 1.2, annotation, fontsize=SIZESUBLABEL)
-
-        del pprops['colors']
-
-        ys = np.array(ys)
-        if floor is not None:
-            ys[ys <= floor] = floor
-        if ceil is not None:
-            ys[ys >= ceil] = ceil
-
-        pprops['facecolor'] = ['None' for _c1 in range(len(xs))]
-        pprops['edgecolor'] = [eclist[_] for _ in scatter_indices]
-        # size_of_point = 2.
-        size_of_point = 1.5 if two_columns else 4.
-        sprops = dict(lw=AXWIDTH, s=size_of_point, marker='o', alpha=1.0)
-
-        temp_x = [[xs[_c1] + np.random.normal(0, 0.04) for _c2 in range(len(ys[_c1]))] for _c1 in scatter_indices]
-        mp.scatter(ax=ax, x=temp_x, y=ys[scatter_indices], plotprops=sprops, **pprops)
-
-        pprops['facecolor'] = [fclist[_] for _ in scatter_indices]
-        sprops = dict(lw=0, s=size_of_point, marker='o', alpha=1)
-        mp.scatter(ax=ax, x=temp_x, y=ys[scatter_indices], plotprops=sprops, **pprops)
-        plt.sca(ax)
-        plt.ylabel(ylabel, labelpad=-6.1 if row == 2 else 0)
-        set_ticks_spines(ax)
-        if two_columns and row >= 2:
-            plt.xticks(ticks=xs, labels=xticklabels, rotation=0)
-        plt.text(x=sublabel_x, y=sublabel_y, s=sublabels[row], transform=ax.transAxes, **DEF_SUBLABELPROPS)
-
-    if two_columns and plot_legend:
-        legend_dy =  1.3
-        legend_l  =  2  # num of lines
-        legend_x  = -12.97
-        legend_y  = -17.5
-        legend_dx =  5
-        legend_d  = -0.5
-        for k, method in enumerate(methods):
-            axes[0].text(legend_x + legend_d + (k//legend_l * legend_dx), legend_y - (k%legend_l * legend_dy), k, ha='center', va='center', **DEF_LABELPROPS)
-            axes[0].text(legend_x + (k//legend_l * legend_dx), legend_y - (k%legend_l * legend_dy), method, ha='left', va='center', **DEF_LABELPROPS)
-
-    plt.show()
-    if save_file:
-        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
-
-
-
-############# ADDITIONAL FIGURES #############
 
 def plot_additional_figure_performance_estimation_with_ample_data(dic_perf_cov, keys=DIC_PERF_COV_KEYS, truncate_list=TRUNCATE, linear_selected=LINEAR_SELECTED, plot_uncalibrated=True, option=0, save_file=None):
     w = DOUBLE_COLUMN
@@ -3162,26 +3315,66 @@ def plot_additional_figure_biplot(data1, data2, label1="", label2="", plot_only_
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_additional_figure_performance_for_different_initial_distributions(performances, tr=5, p=0, q=0, linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED):
+def plot_additional_figure_performance_for_different_initial_distributions(performances, tr=5, sample_list=SAMPLE, record_list=RECORD, pq_list=[(0, 0), (0, 3), (4, 0), (4, 3)], linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, double_column=True, ylim=(0.65, 0.95), yticks=np.arange(0.7, 0.95, 0.1), save_file=None):
+
+    w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
+    goldh = w / GOLD_RATIO
+    nRow, nCol = 2, 2
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
 
     spearmanr_basic, spearmanr_linear, spearmanr_dcorr = performances['spearmanr_basic'], performances['spearmanr_linear'], performances['spearmanr_dcorr']
 
-    ys_list = [np.mean(spearmanr_basic[:, :, :, p, q, 0], axis=(0, 1)),
-          np.mean(spearmanr_basic[:, :, :, p, q, 1], axis=(0, 1)),
-          np.mean(spearmanr_basic[:, :, :, p, q, 2], axis=(0, 1)),
-          np.mean(spearmanr_basic[:, :, :, p, q, 3], axis=(0, 1)),
-          np.mean(spearmanr_linear[:, :, :, p, q, linear_selected], axis=(0, 1)),
-          np.mean(spearmanr_dcorr[:, :, :, p, q, loss_selected, gamma_selected], axis=(0, 1)),]
-    xs = np.arange(NUM_TRIALS)
-    labels = ['SL', 'MPL', 'est', 'est_unnormalized', 'linear', 'nonlinear']
-    colors = COLOR_BASIC + [COLOR_LINEAR, COLOR_NONLINEAR]
+    ys_lists = []
+    for p, q in pq_list:
+        ys_list = [np.mean(spearmanr_basic[:, :, :, p, q, 0], axis=(0, 1)),
+              np.mean(spearmanr_basic[:, :, :, p, q, 1], axis=(0, 1)),
+              np.mean(spearmanr_basic[:, :, :, p, q, 2], axis=(0, 1)),
+              # np.mean(spearmanr_basic[:, :, :, p, q, 3], axis=(0, 1)),
+              np.mean(spearmanr_linear[:, :, :, p, q, linear_selected], axis=(0, 1)),
+              np.mean(spearmanr_dcorr[:, :, :, p, q, loss_selected, gamma_selected], axis=(0, 1)),]
+        ys_lists.append(ys_list)
 
-    fig, axes = plt.subplots(1, 1, figsize=(10, 6))
-    for i, (ys, label, color) in enumerate(zip(ys_list, labels, colors)):
-        plt.scatter(xs, ys, color=color, label=label, marker=MARKER_BASIC[0], s=SMALLSIZEDOT)
-        plt.plot(xs, ys, color=color, linewidth=SIZELINE, linestyle='solid' if i != 3 else 'dashed')
-    plt.legend(fontsize=SIZELEGEND)
+    xs = np.arange(5, 25)
+    # labels = ['SL', 'MPL', 'est', 'est_unnormalized', 'linear', 'nonlinear']
+    labels = ['SL', 'MPL', 'est', 'linear', 'nonlinear']
+    colors = COLORS_ALL_METHODS_NORM
+    markers = MARKERS_ALL_METHODS_NORM
+    xlabel = 'Number of founder genotypes'
+    xticks = np.arange(5, 30, 5)
+    ylabel = YLABEL_SPEARMANR
+    yticklabels = ['%.1f' % _ for _ in yticks]
+
+    for i, (ys_list, (p, q)) in enumerate(zip(ys_lists, pq_list)):
+        plt.sca(axes[i//nCol, i%nCol])
+        ax = plt.gca()
+        at_left = (i%nCol == 0)
+        at_bottom = (i//nCol == nRow - 1)
+        for j, (ys, label, color, marker) in enumerate(zip(ys_list, labels, colors, markers)):
+            plt.scatter(xs, ys, color=color, label=label, marker=marker, s=SMALLSIZEDOT)
+            plt.plot(xs, ys, color=color, linewidth=SIZELINE, linestyle='solid' if j != 3 else 'dashed')
+            plt.ylim(ylim)
+            if at_bottom:
+                plt.xlabel(xlabel, fontsize=SIZELABEL)
+                plt.xticks(ticks=xticks, labels=xticks)
+            else:
+                plt.xticks(ticks=xticks, labels=[])
+            if at_left:
+                plt.ylabel(ylabel, fontsize=SIZELABEL)
+                plt.yticks(ticks=yticks, labels=yticklabels)
+            else:
+                plt.yticks(ticks=yticks, labels=[])
+
+        if i == 0:
+            plt.legend(fontsize=SIZELEGEND)
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
+
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
     plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
 def plot_figure_performance_with_shrink(performances, truncate_list=TRUNCATE, plotUnnormalized=False, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, shrink_selected=None, save_file=None, p=0, q=0):

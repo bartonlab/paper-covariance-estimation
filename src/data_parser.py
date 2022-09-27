@@ -6,6 +6,7 @@ import argparse
 import numpy as np                          # numerical tools
 from timeit import default_timer as timer   # timer for performance
 from scipy import stats
+from scipy import interpolate
 import math
 import pandas as pd
 import matplotlib
@@ -63,10 +64,30 @@ BORDERIA_SHEETNAMES = [f'replicate {i}' for i in range(1, 7)]
 # BORDERIA_TIME_COLUMNS_rpl3 = [f'p{i}' for i in range(1, 41)]
 # BORDERIA_TIMES = np.arange(1, 41)
 
-
 KESSINGER_DATA_DIR = './data/kessinger2013-ou'
 KESSINGER_FILE = f'{KESSINGER_DATA_DIR}/CH40longitudinal.fasta'
 
+HIV_DATA_DIR = './data/HIV'
+HIV_IDS = ['700010040', '700010058', '700010077', '700010470', '700010607', '703010131', '703010159', '703010256', '703010848', '704010042', '705010162', '705010185', '705010198', '706010164']
+HIV_IDS_P5 = ['700010040', '700010058', '700010077', '700010470', '700010607', '703010131', '703010159', '703010256', '704010042', '705010162', '705010185', '705010198', '706010164']
+
+ZANINI_DATA_DIR = './data/zanini2015-nm'
+ZANINI_PATIENTS = [f'p{i}' for i in range(1, 12)]
+ZANINI_REGIONS = ['V3', 'PR', 'psi', 'vpr', 'vpu', 'p15', 'p17', 'p6', 'p2', 'p1', 'p7', 'RRE']
+ZANINI_REGIONS_TO_INDICES = {
+    'V3': (6428, 6787), # (6984, 7349),
+    'PR': (2253, 2549),
+    'psi': (697, 779),
+    'vpr': (5559, 5850),
+    'vpu': (6062, 6310),
+    'p15': (3870, 4229),
+    'p17': (790, 1185),
+    'p6': (2134, 2292),
+    'p2': (1879, 1920),
+    'p1': (2086, 2133),
+    'p7': (1921, 2085),
+    'RRE': (7769, 8002),
+    }
 SIMULATION_PARAMS = {
     'mutation_rate': 1e-3,
     'linear_reg': 1,
@@ -120,6 +141,22 @@ KESSINGER_PARAMS = {
     'nonlinear_reg': True,
     'linear_reg': 1,
 }
+HIV_PARAMS = {
+    'mutation_rate': 5e-5,  # HIV-1 has been found to mutate on the order of 10−4 to 10−5 mutations/base pair/cycle (m/bp/c)
+    'methods': ['SL', 'Est', 'Lolipop', 'Evoracle', 'haploSep'],
+    'window': 20,
+    'nonlinear_reg': True,
+    'linear_reg': 1,
+}
+ZANINI_PARAMS = {
+    'mutation_rate': 4.1e-3,  # Pelizzola et al. 2021
+    'methods': ['SL', 'Est', 'Lolipop', 'Evoracle', 'haploSep'],
+    'window': 20,
+    'nonlinear_reg': True,
+    'linear_reg': 1,
+}
+
+NUC=['-', 'A', 'C', 'G', 'T']
 
 N = 1000        # number of sequences in the population
 L = 50          # sequence length
@@ -199,6 +236,20 @@ DEF_TICKPROPS = {
     'top'       : False,
     'right'     : False,
 }
+
+class bcolors:
+    BLACK = '\033[0m'
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    GREY = '\033[38;5;07m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    FAINT = '\033[2m'
+    UNDERLINE = '\033[4m'
 
 
 ############################################
@@ -522,7 +573,7 @@ def computeFitness(traj, selection, initial_fitness=1, normalizeFitness=False):
 # def load_performance(truncate=700, window=20):
 #     return np.load(f'{ESTIMATION_OUTPUT_DIR}/estimation_output_truncate={truncate}_window={window}.npz')
 
-def load_performance(window=20, varying_initial=False, recombination=False, r=1e-5):
+def load_performance(window=20, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     """Loads spearmanr & error of inferred selections with a certain window choice."""
 
     spearmanr_cov_normalized, spearmanr_cov_unnormalized, spearmanr_basic, spearmanr_linear, spearmanr_dcorr, spearmanr_shrink, spearmanr_dcorr_shrink, error_cov_normalized, error_cov_unnormalized, error_basic, error_linear, error_dcorr, error_shrink, error_dcorr_shrink = [], [], [], [], [], [], [], [], [], [], [], [], [], []
@@ -530,7 +581,7 @@ def load_performance(window=20, varying_initial=False, recombination=False, r=1e
     std_var, std_cov, std_var_est, std_cov_est, std_var_nonlinear, std_cov_nonlinear = [], [], [], [], [], []
 
     for tr, truncate in enumerate(TRUNCATE):
-        dic = SS.load_estimation(truncate, window, varying_initial=varying_initial, recombination=recombination, r=r)
+        dic = SS.load_estimation(truncate, window, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
 
         spearmanr_cov_normalized.append(dic['spearmanr_cov_calibrated'])
         error_cov_normalized.append(dic['error_cov_calibrated'])
@@ -625,13 +676,13 @@ def load_covariances(window=20, truncate=700, varying_initial=False, recombinati
     return covariances
 
 
-def load_performance_combine(window=20, varying_initial=False, recombination=False, r=1e-5):
+def load_performance_combine(window=20, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     """Loads spearmanr & error of inferred selections by combining multiple replicates with a certain window choice."""
 
     spearmanr_basic, spearmanr_linear, spearmanr_dcorr, spearmanr_shrink, spearmanr_dcorr_shrink, error_basic, error_linear, error_dcorr, error_shrink, error_dcorr_shrink = [], [], [], [], [], [], [], [], [], []
 
     for tr, truncate in enumerate(TRUNCATE):
-        dic = SS.load_estimation(truncate, window, varying_initial=varying_initial, recombination=recombination, r=r)
+        dic = SS.load_estimation(truncate, window, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
 
         spearmanr_basic.append(dic['spearmanr_basic_combine'])
         spearmanr_linear.append(dic['spearmanr_linear_combine'])
@@ -1736,7 +1787,6 @@ def parse_data_kessinger2013(ch=40):
     sequences, times = parse_time_series_kessinger2013(ch=ch)
     T, L = len(times), len(sequences[0][0])
     traj = np.zeros((T, L), dtype=float)
-    nTot = np.zeros((T, L), dtype=float)
     for t in range(T):
         nSeqs = len(sequences[t])
         for seq in sequences[t]:
@@ -1815,9 +1865,583 @@ def infer_selection_kessinger2013(data, params=KESSINGER_PARAMS, shrink_off_diag
 
 ############################################
 #
+# Longitudinal patient data HIV
+#
+############################################
+
+def extract_time_HIV(tag, time_index=3, HXB2_TAG='B.FR.1983.HXB2-LAI-IIIB-BRU.K03455.19535', CONS_TAG='CONSENSUS'):
+
+    if tag in [HXB2_TAG, CONS_TAG]:
+        return None
+    return int(tag.split('.')[time_index])
+
+
+def parse_TF_sequence_HIV(id, prime=3):
+
+    TF_sequence_file = f'{HIV_DATA_DIR}/TF-{id}-{prime}.fasta'
+    seqs, tags = get_MSA(TF_sequence_file)
+    return seqs[1]
+
+
+def parse_time_series_HIV(id, prime=3, time_index=3, CONS_TAG='CONSENSUS', compute_ref_seq=False):
+
+    sequence_file = f'{HIV_DATA_DIR}/{id}-{prime}.fasta'
+    ref_seq = parse_TF_sequence_HIV(id, prime=prime)
+    seqs, tags = get_MSA(sequence_file)
+    TF_TAG = tags[0]
+
+    sequences_nt = []
+    times = []
+    for tag, seq in zip(tags, seqs):
+        time = extract_time_HIV(tag)
+        if time is not None:
+            if time not in times:
+                times.append(time)
+            index = times.index(time)
+            while index >= len(sequences_nt):
+                sequences_nt.append([])
+            sequences_nt[index].append(seq)
+
+    L = len(sequences_nt[0][0])
+    T = len(sequences_nt)
+
+    freqs_nt = [{nt: [0 for t in range(T)] for nt in NUC} for l in range(L)]
+    for l in range(L):
+        for t in range(T):
+            for seq in sequences_nt[t]:
+                freqs_nt[l][seq[l]][t] += 1 / len(sequences_nt[t])
+
+    if compute_ref_seq:
+        ref_seq = [None for l in range(L)]
+        for l in range(L):
+            max_sum = 0
+            ref_nt = None
+            for nt in NUC:
+                sum = np.sum(freqs_nt[l][nt][:10])
+                if sum > max_sum:
+                    ref_nt = nt
+                    max_sum = sum
+            ref_seq[l] = ref_nt
+        ref_seq = np.array(ref_seq)
+
+    sequences = []
+    for t in range(len(sequences_nt)):
+        sequences.append([])
+        for seq in sequences_nt[t]:
+            sequences[t].append(binarize_genotype(seq, ref_seq=ref_seq))
+
+    print(f'{id}-{prime}, {len(seqs)} sequences, {len(times)} timepoints')
+
+    return sequences, times, sequences_nt
+
+
+def filter_traj_HIV(sequences, times, sequences_nt, thHigh=0.95, thLow=0.05):
+
+    T, L = len(times), len(sequences[0][0])
+    traj = np.zeros((T, L), dtype=float)
+    for t in range(T):
+        nSeqs = len(sequences[t])
+        for seq in sequences[t]:
+            for l, locus in enumerate(seq):
+                traj[t, l] += locus / nSeqs  # locus = 1 or 0
+
+    loci_preserved = []
+    for l in range(L):
+        if np.max(traj[:, l]) < thLow or np.min(traj[:, l]) > thHigh:
+            continue
+        else:
+            loci_preserved.append(l)
+
+    traj_filtered = traj[:, loci_preserved]
+
+    sequences_filtered = [[] for t in range(T)]
+    sequences_nt_filtered = [[] for t in range(T)]
+    for t in range(T):
+        for seq in sequences[t]:
+            sequences_filtered[t].append(seq[loci_preserved])
+        for seq in sequences_nt[t]:
+            sequences_nt_filtered[t].append(np.array([seq[l] for l in loci_preserved]))
+
+    freqs_nt = [{nt: [0 for t in range(T)] for nt in NUC} for l in range(L)]
+    for l in range(L):
+        for t in range(T):
+            for seq in sequences_nt[t]:
+                freqs_nt[l][seq[l]][t] += 1 / len(sequences_nt[t])
+
+    freqs_nt_filtered = [freqs_nt[l] for l in loci_preserved]
+
+    return traj, traj_filtered, sequences_filtered, sequences_nt_filtered, freqs_nt, freqs_nt_filtered
+
+
+def interpolate_traj_HIV(traj, times, times_intpl):
+
+    T, L = traj.shape
+    traj_intpl = np.zeros((len(times_intpl), L))
+    for l in range(L):
+        f = create_interpolation_function(times, traj[:, l])
+        for t, time in enumerate(times_intpl):
+            traj_intpl[t, l] = f(time)
+
+    return traj_intpl
+
+
+def parse_data_HIV(id, prime=3, compute_ref_seq=False):
+
+    sequences, times, sequences_nt = parse_time_series_HIV(id, prime=prime, compute_ref_seq=compute_ref_seq)
+
+    traj, traj_filtered, sequences_filtered, sequences_nt_filtered, freqs_nt, freqs_nt_filtered = filter_traj_CH848(sequences, times, sequences_nt)
+
+    print(f'Before filtering: {len(traj[0])} loci.')
+    print(f'After filtering: {len(traj_filtered[0])} loci.')
+
+    times_intpl = np.arange(times[0], times[-1] + 1, 1)
+    traj_intpl = interpolate_traj_HIV(traj_filtered, times, times_intpl)
+
+    int_cov = MPL.integrateCovarianceFromSequences(sequences_filtered, times)
+
+    data = {
+        'traj': traj,
+        'traj_filtered': traj_filtered,
+        'traj_intpl': traj_intpl,
+        'times_intpl': times_intpl,
+        'sequences': sequences,
+        'sequences_filtered': sequences_filtered,
+        'sequences_nt_filtered': sequences_nt_filtered,
+        'freqs_nt': freqs_nt,
+        'freqs_nt_filtered': freqs_nt_filtered,
+        'times': times,
+        'int_cov': int_cov,
+    }
+    return data
+
+
+def infer_selection_HIV(data, params=HIV_PARAMS, shrink_off_diagonal_terms=1, nonlinear_reg=None, window=None, use_intpl=True, verbose=True):
+
+    if window is None:
+        window = params['window']
+    mu, linear_reg = params['mutation_rate'], params['linear_reg']
+    if nonlinear_reg is None:
+        nonlinear_reg = params['nonlinear_reg']
+    int_cov = data['int_cov']
+    if use_intpl:
+        traj, times = data['traj_intpl'], data['times_intpl']
+    else:
+        traj, times = data['traj_filtered'], data['times']
+    T, L = traj.shape
+    D = MPL.computeD(traj, times, mu)
+
+    est_cov, selection_by_est_cov = EC.estimateAndInferencePipeline(traj, times, window, mu, nonlinear_reg=nonlinear_reg, linear_reg=linear_reg)
+
+    if shrink_off_diagonal_terms != 1:
+        if verbose:
+            print('Before shrinking, off-diagonal terms of est_cov has std=%.1f, diagonal has std=%.1f' % (np.std(EC.get_off_diagonal_terms(est_cov)), np.std(EC.get_diagonal_terms(est_cov))))
+            print('off-diagonal terms of true_cov has std=%.1f, diagonal has std=%.1f' % (np.std(EC.get_off_diagonal_terms(int_cov)), np.std(EC.get_diagonal_terms(int_cov))))
+
+        est_cov = EC.shrinkOffDiagonalTerms(est_cov, shrink_off_diagonal_terms)
+
+        if verbose:
+            print('After shrinking, off-diagonal terms of est_cov  has std=%.3f, diagonal has std=%.1f' % (np.std(EC.get_off_diagonal_terms(est_cov)), np.std(EC.get_diagonal_terms(est_cov))))
+
+    selection_by_est_cov = MPL.inferSelection(est_cov, D, linear_reg * np.identity(L))
+
+    # print(L, int_cov.shape)
+    selection_by_true_cov = MPL.inferSelection(int_cov, D, linear_reg * np.identity(L))
+
+    cov_SL_test = MPL.computeIntegratedVariance(traj, times)
+    cov_SL = copy_diagonal_terms_from(int_cov)
+    selection_by_SL = MPL.inferSelection(cov_SL, D, linear_reg * np.identity(L))
+
+    inference_results = {
+        'cov_SL': cov_SL,
+        'est_cov': est_cov,
+        'selection_by_est_cov': selection_by_est_cov,
+        'selection_by_true_cov': selection_by_true_cov,
+        'selection_by_SL': selection_by_SL,
+    }
+
+    return inference_results
+
+
+def plot_inference_results_HIV(inference_results, suptitle='Selection'):
+    metrics_list = [inference_results['selection_by_true_cov'],
+                    inference_results['selection_by_est_cov'],
+                    inference_results['selection_by_SL']]
+    labels = ['MPL', 'Est', 'SL']
+    plotInferenceResults(metrics_list, labels=labels, use_pearsonr=True, suptitle=suptitle)
+
+
+############################################
+#
+# Longitudinal intra-patient HIV data from Zanini2015
+#
+############################################
+
+def print_summary_Zanini():
+    for patient in ZANINI_PATIENTS:
+        for region in ZANINI_REGIONS:
+            sequence_file = f'{ZANINI_DATA_DIR}/haplotypes_{patient}_{region}.fasta'
+            try:
+                seqs, tags = get_MSA(sequence_file)
+            except:
+                print(f'Patient {patient}, region {region} not available. ')
+                continue
+            times = []
+            for tag, seq in zip(tags, seqs):
+                time = extract_time_Zanini(tag)
+                if time is not None:
+                    if time not in times:
+                        times.append(time)
+            print(f'Patient {patient}, region {region}, <{len(seqs)} genotypes, {len(times)} timepoints')
+
+
+def extract_time_Zanini(tag):
+    prefix = tag.split(' ')[0]
+    return int(prefix.split('_')[1])
+
+
+def extract_freq_Zanini(tag):
+    prefix = tag.split(' ')[0]
+    return int(prefix.split('_')[3][:-1]) / 100
+
+
+def parse_reference_genome_Zanini(patient):
+    sequence_file = f'{ZANINI_DATA_DIR}/genome_{patient}.fasta'
+    seqs, tags = get_MSA(sequence_file)
+    return seqs[0]
+
+
+def parse_reference_sequence_Zanini(patient, region):
+    genome = parse_reference_genome_Zanini(patient)
+    start, end = ZANINI_REGIONS_TO_INDICES[region]
+    return genome[start-1:end]
+
+
+def parse_time_series_Zanini(patient, region, compute_ref_seq=False):
+    sequence_file = f'{ZANINI_DATA_DIR}/haplotypes_{patient}_{region}.fasta'
+    try:
+        seqs, tags = get_MSA(sequence_file)
+    except:
+        print(f'Patient {patient}, region {region} not available. ')
+        return
+    ref_seq = parse_reference_sequence_Zanini(patient, region)
+
+    sequences_nt = []
+    genotypes_nt = []
+    times = []
+    geno_freqs = []
+    for tag, seq in zip(tags, seqs):
+        if seq not in genotypes_nt:
+            genotypes_nt.append(tuple(seq))
+        time = extract_time_Zanini(tag)
+        freq = extract_freq_Zanini(tag)
+        if time is not None:
+            if time not in times:
+                times.append(time)
+            index = times.index(time)
+            while index >= len(sequences_nt):
+                sequences_nt.append([])
+                geno_freqs.append([])
+            sequences_nt[index].append(seq)
+            geno_freqs[index].append(freq)
+
+    indices = np.argsort(times)
+    times = [times[_] for _ in indices]
+    genotypes_nt = [genotypes_nt[_] for _ in indices]
+    sequences_nt = [sequences_nt[_] for _ in indices]
+    geno_freqs = [geno_freqs[_] for _ in indices]
+
+    L = len(sequences_nt[0][0])
+    T = len(sequences_nt)
+
+    freqs_nt = [{nt: [0 for t in range(T)] for nt in NUC} for l in range(L)]
+    for l in range(L):
+        for t in range(T):
+            for seq, freq in zip(sequences_nt[t], geno_freqs[t]):
+                freqs_nt[l][seq[l]][t] += freq / len(sequences_nt[t])
+
+    if compute_ref_seq:
+        ref_seq = [None for l in range(L)]
+        for l in range(L):
+            max_sum = 0
+            ref_nt = None
+            for nt in NUC:
+                sum = np.sum(freqs_nt[l][nt][:len(times) // 2])
+                if sum > max_sum:
+                    ref_nt = nt
+                    max_sum = sum
+            ref_seq[l] = ref_nt
+        ref_seq = np.array(ref_seq)
+
+    sequences = []
+    genotypes = []
+    for t in range(len(sequences_nt)):
+        sequences.append([])
+        for seq in sequences_nt[t]:
+            genotype = binarize_genotype(seq, ref_seq=ref_seq)
+            sequences[t].append(genotype)
+            genotype_tuple = tuple(genotype)
+            if genotype_tuple not in genotypes:
+                genotypes.append(genotype_tuple)
+
+    geno_traj = np.zeros((len(times), len(genotypes)))
+    for t in range(len(sequences)):
+        for seq, freq in zip(sequences[t], geno_freqs[t]):
+            genotype_tuple = tuple(seq)
+            geno_index = genotypes.index(genotype_tuple)
+            # print(t, geno_index)
+            geno_traj[t, geno_index] = freq
+
+    print(f'{patient}-{region}, {len(genotypes)} genotypes, {len(times)} timepoints')
+
+    return genotypes, times, geno_traj
+
+
+def filter_traj_Zanini(genotypes, times, geno_traj, thHigh=0.99, thLow=0.01):
+
+    traj = compute_allele_traj_from_geno_traj(geno_traj, genotypes)
+    T, L = traj.shape
+
+    loci_preserved = []
+    for l in range(L):
+        if np.max(traj[:, l]) < thLow or np.min(traj[:, l]) > thHigh:
+            continue
+        else:
+            loci_preserved.append(l)
+
+    traj_filtered = traj[:, loci_preserved]
+
+    genotypes_filtered = [tuple(np.array(genotype)[loci_preserved]) for genotype in genotypes]
+
+    return traj, traj_filtered, genotypes_filtered
+
+
+def interpolate_traj_Zanini(traj, times, times_intpl):
+
+    T, L = traj.shape
+    traj_intpl = np.zeros((len(times_intpl), L))
+    for l in range(L):
+        f = create_interpolation_function(times, traj[:, l])
+        for t, time in enumerate(times_intpl):
+            traj_intpl[t, l] = f(time)
+
+    return traj_intpl
+
+
+def parse_data_Zanini(patient, region, compute_ref_seq=True):
+
+    genotypes, times, geno_traj = parse_time_series_Zanini(patient, region, compute_ref_seq=compute_ref_seq)
+
+    traj, traj_filtered, genotypes_filtered = filter_traj_Zanini(genotypes, times, geno_traj)
+
+    print(f'Before filtering: {len(traj[0])} loci.')
+    print(f'After filtering: {len(traj_filtered[0])} loci.')
+
+    times_intpl = np.arange(times[0], times[-1] + 1, 1)
+    traj_intpl = interpolate_traj_Zanini(traj_filtered, times, times_intpl)
+
+    int_cov = MPL.integrateCovarianceFromStableGenotypes(genotypes_filtered, geno_traj, times)
+
+    data = {
+        'genotypes': genotypes,
+        'times': times,
+        'geno_traj': geno_traj,
+        'traj': traj,
+        'traj_filtered': traj_filtered,
+        'traj_intpl': traj_intpl,
+        'times_intpl': times_intpl,
+        'int_cov': int_cov,
+    }
+    return data
+
+
+def infer_selection_Zanini(data, params=ZANINI_PARAMS, shrink_off_diagonal_terms=1, linear_reg=None, nonlinear_reg=None, window=None, use_intpl=False, verbose=True):
+
+    if window is None:
+        window = params['window']
+    mu = params['mutation_rate']
+    if linear_reg is None:
+        linear_reg = params['linear_reg']
+    if nonlinear_reg is None:
+        nonlinear_reg = params['nonlinear_reg']
+    int_cov = data['int_cov']
+    if use_intpl:
+        traj, times = data['traj_intpl'], data['times_intpl']
+    else:
+        traj, times = data['traj_filtered'], data['times']
+    T, L = traj.shape
+    D = MPL.computeD(traj, times, mu)
+
+    est_cov, selection_by_est_cov = EC.estimateAndInferencePipeline(traj, times, window, mu, nonlinear_reg=nonlinear_reg, linear_reg=linear_reg)
+
+    if shrink_off_diagonal_terms != 1:
+        if verbose:
+            print('Before shrinking, off-diagonal terms of est_cov has std=%.1f, diagonal has std=%.1f' % (np.std(EC.get_off_diagonal_terms(est_cov)), np.std(EC.get_diagonal_terms(est_cov))))
+            print('off-diagonal terms of true_cov has std=%.1f, diagonal has std=%.1f' % (np.std(EC.get_off_diagonal_terms(int_cov)), np.std(EC.get_diagonal_terms(int_cov))))
+
+        est_cov = EC.shrinkOffDiagonalTerms(est_cov, shrink_off_diagonal_terms)
+
+        if verbose:
+            print('After shrinking, off-diagonal terms of est_cov  has std=%.3f, diagonal has std=%.1f' % (np.std(EC.get_off_diagonal_terms(est_cov)), np.std(EC.get_diagonal_terms(est_cov))))
+
+    selection_by_est_cov = MPL.inferSelection(est_cov, D, linear_reg * np.identity(L))
+
+    # print(L, int_cov.shape)
+    selection_by_true_cov = MPL.inferSelection(int_cov, D, linear_reg * np.identity(L))
+
+    cov_SL_test = MPL.computeIntegratedVariance(traj, times)
+    cov_SL = copy_diagonal_terms_from(int_cov)
+    selection_by_SL = MPL.inferSelection(cov_SL, D, linear_reg * np.identity(L))
+
+    inference_results = {
+        'cov_SL': cov_SL,
+        'est_cov': est_cov,
+        'selection_by_est_cov': selection_by_est_cov,
+        'selection_by_true_cov': selection_by_true_cov,
+        'selection_by_SL': selection_by_SL,
+    }
+
+    return inference_results
+
+
+def parse_data_all_Zanini():
+    data_all = {}
+    for patient in ZANINI_PATIENTS:
+        for region in ZANINI_REGIONS:
+            try:
+                sequence_file = f'{ZANINI_DATA_DIR}/haplotypes_{patient}_{region}.fasta'
+                seqs, tags = get_MSA(sequence_file)
+                data_all[f'{patient}-{region}'] = parse_data_Zanini(patient, region)
+            except:
+                continue
+    return data_all
+
+
+def infer_selection_all_Zanini(data_all, params=ZANINI_PARAMS, shrink_off_diagonal_terms=1, nonlinear_reg=None, linear_reg=None, window=None, use_intpl=False, verbose=True):
+    results_all = {}
+    for key, data in data_all.items():
+        results_all[key] = infer_selection_Zanini(data, params=params,  shrink_off_diagonal_terms=shrink_off_diagonal_terms, nonlinear_reg=nonlinear_reg, linear_reg=linear_reg, window=window, use_intpl=use_intpl, verbose=verbose)
+    return results_all
+
+
+def plot_inference_results_Zanini(inference_results, suptitle='Selection'):
+    metrics_list = [inference_results['selection_by_true_cov'],
+                    inference_results['selection_by_est_cov'],
+                    inference_results['selection_by_SL']]
+    labels = ['MPL', 'Est', 'SL']
+    plotInferenceResults(metrics_list, labels=labels, use_pearsonr=True, suptitle=suptitle)
+
+
+def print_inference_results_all_Zanini(data_all, results_all):
+    columns = ['Patient-region', '#timepnts', '#genotypes', '#alleles', 'Mean dg',
+               'Spearman(Pearson)_SL', 'Spearman(Pearson)_Est',
+               # 'Pearsonr_SL', 'Pearsonr_Est',
+               # 'MAE_SL', 'MAE_Est'
+               ]
+
+    rows_green = []
+    rows_blue = []
+    rows_warning = []
+
+    for key, results in results_all.items():
+        data = data_all[key]
+        traj = data['traj_filtered']
+        T, L = traj.shape
+        geno_traj = data['geno_traj']
+        T, G = geno_traj.shape
+        times = data['times']
+        mean_interval = np.mean([times[i+1] - times[i] for i in range(len(times) - 1)])
+
+        spearmanr_SL, pearsonr_SL, MAE_SL = spearmanr_pearsonr_MAE(results['selection_by_SL'], results['selection_by_true_cov'])
+        spearmanr_Est, pearsonr_Est, MAE_Est = spearmanr_pearsonr_MAE(results['selection_by_est_cov'], results['selection_by_true_cov'])
+
+        row = [key, T, G, L, '%d' % mean_interval,
+               '%.2f(%.2f)' % (spearmanr_SL, pearsonr_SL), '%.2f(%.2f)' % (spearmanr_Est, pearsonr_Est),
+               # '%.2f' % pearsonr_SL, '%.2f' % pearsonr_Est,
+               # MAE_SL, MAE_Est
+               ]
+
+        if spearmanr_Est > spearmanr_SL:
+            color = bcolors.OKGREEN
+            row = [f'{color}{_}' for _ in row]
+            rows_green.append(row)
+        # elif MAE_Est < MAE_SL:
+        #     color = bcolors.OKBLUE
+        #     row = [f'{color}{_}' for _ in row]
+        #     rows_blue.append(row)
+        else:
+            color = bcolors.WARNING
+            row = [f'{color}{_}' for _ in row]
+            rows_warning.append(row)
+
+    rows = rows_green + rows_blue + rows_warning
+
+    print(tabulate(rows, columns, tablefmt='plain'))
+
+
+############################################
+#
 # Utility functions
 #
 ############################################
+
+def create_interpolation_function(times, freqs, tmax=100000, kind='linear'):
+    # can create it for anything!
+
+    interpolating_function = interpolate.interp1d(times, freqs, kind=kind, bounds_error=True)
+
+    # padded_times = np.zeros(len(times)+1)
+    # padded_freqs = np.zeros(len(times)+1)
+    # padded_times[0:len(times)] = times
+    # padded_freqs[0:len(times)] = freqs
+    # padded_times[-1] = tmax
+    # padded_freqs[-1] = freqs[-1]
+    #
+    # interpolating_function = interpolate.interp1d(padded_times, padded_freqs, kind=kind, bounds_error=True)
+
+    return interpolating_function
+
+
+def sort_msa_by_times(msa, tag, sort=False, TIME_INDEX=3, TF_TAG='B.FR.1983.HXB2-LAI-IIIB-BRU.K03455.19535', CONS_TAG='CONSENSUS'):
+    """Return sequences and times collected from an input MSA and tags (optional: time order them)."""
+
+    times = []
+    for i in range(len(tag)):
+        if tag[i] not in [TF_TAG, CONS_TAG]:
+            tsplit = tag[i].split('.')
+            times.append(int(tsplit[TIME_INDEX]))
+        else:
+            times.append(-1)
+
+    if sort:
+        t_sort = np.argsort(times)
+        return np.array(msa)[t_sort], np.array(tag)[t_sort], np.array(times)[t_sort]
+    else:
+        return np.array(times)
+
+
+def get_MSA(ref, noArrow=True):
+    """Take an input FASTA file and return the multiple sequence alignment, along with corresponding tags. """
+
+    temp_msa = [i.split() for i in open(ref).readlines()]
+    temp_msa = [i for i in temp_msa if len(i) > 0]
+
+    msa = []
+    tag = []
+
+    for i in temp_msa:
+        if i[0][0] == '>':
+            msa.append('')
+            if noArrow:
+                tag.append(i[0][1:])
+            else:
+                tag.append(i[0])
+        else:
+            msa[-1] += i[0]
+
+    msa = np.array(msa)
+
+    return msa, tag
+
 
 def MAE(a, b):
     return np.mean(np.absolute(np.array(a) - np.array(b)))
@@ -1877,6 +2501,10 @@ def copy_diagonal_terms_from(matrix):
     for l in range(len(matrix)):
         ret[l, l] = matrix[l, l]
     return ret
+
+
+def array_to_string(seq):
+    return ''.join([str(_) for _ in seq])
 
 
 ############################################

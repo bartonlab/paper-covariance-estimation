@@ -117,6 +117,20 @@ def generate_initial_distributions(overwrite=False):
                 np.savez_compressed(INITIAL_DIR + f'/initial_{i}', sequences=sequences, counts=counts)
 
 
+def generate_initial_distributions_four_founder_genotypes(overwrite=False, num_genotypes=4):
+    """ Generates {NUM_TRIALS} different initial distributions of genotypes used in our simulations. """
+    # 20 initial populations, all with 4 founder genotypes, but different across each other. Their initial sizes are also random. (Each 10 individuals are randomly assigned to one of the founding genotypes.)
+    for i in range(NUM_TRIALS):
+        sequences, counts = generate_random_genotype_distribution(num_genotypes)
+        if overwrite:
+            np.savez_compressed(INITIAL_DIR + f'/initial_four_{i}', sequences=sequences, counts=counts)
+        else:
+            try:
+                load_initial_four_founder_genotypes(i + 1)
+            except:
+                np.savez_compressed(INITIAL_DIR + f'/initial_four_{i}', sequences=sequences, counts=counts)
+
+
 def generate_random_genotype_distribution(num_genotypes):
     sequences = [generate_a_random_genotype() for _ in range(num_genotypes)]
     counts = [0 for seq in sequences]
@@ -209,17 +223,24 @@ def generate_shell_script(path2job, jobname, command, hours=4, mem=16, ncpus=1, 
         fp.close()
 
 
-def generate_simulation_scripts(env='cov_est', varying_initial=False, local=False, overwrite=True, recombination=False, r=1e-5):
+def generate_simulation_scripts(env='cov_est', varying_initial=False, varying_founder_genotype=False, local=False, overwrite=True, recombination=False, r=1e-5):
     if recombination:
         prefix = f'simulation_r={r}'
     elif varying_initial:
         prefix = f'simulation_vid'
+    elif varying_founder_genotype:
+        prefix = f'simulation_vfg'
     else:
         prefix = f'simulation'
     for s in range(NUM_SELECTIONS):
         for n in range(NUM_TRIALS):
             jobname = f'{prefix}_s={s}_n={n}'
-            initial_filename = f'initial_{n}.npz' if varying_initial else 'initial.npz'
+            if varying_initial:
+                initial_filename = f'initial_{n}.npz'
+            elif varying_founder_genotype:
+                initial_filename = f'initial_four_{n}.npz'
+            else:
+                initial_filename = 'initial.npz'
             job_pars = {'-N': N,
                         '-L': L,
                         '-T': T,
@@ -239,7 +260,7 @@ def generate_simulation_scripts(env='cov_est', varying_initial=False, local=Fals
     command = ''
     for s in range(NUM_SELECTIONS):
         for n in range(NUM_TRIALS):
-            if (not overwrite) and test_single_simulation(s, n, varying_initial=varying_initial, recombination=recombination, r=r):
+            if (not overwrite) and test_single_simulation(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r):
                 continue
             if local:
                 command += f'sh {prefix}_s={s}_n={n}_local.sh\n'
@@ -248,13 +269,16 @@ def generate_simulation_scripts(env='cov_est', varying_initial=False, local=Fals
     generate_shell_script(JOB_DIR, jobname, command, env=env, local=local)
 
 
-def generate_subsample_scripts(env='cov_est', varying_initial=False, overwrite=True, recombination=False, r=1e-5, partition='intel'):
+def generate_subsample_scripts(env='cov_est', varying_initial=False, varying_founder_genotype=False, overwrite=True, recombination=False, r=1e-5, partition='intel'):
     if recombination:
         prefix = f'subsample_r={r}'
         sim_prefix = f'simulation_r={r}'
     elif varying_initial:
         prefix = f'subsample_vid'
         sim_prefix = f'simulation_vid'
+    elif varying_founder_genotype:
+        prefix = f'subsample_vfg'
+        sim_prefix = f'simulation_vfg'
     else:
         prefix = f'subsample'
         sim_prefix = f'simulation'
@@ -280,13 +304,13 @@ def generate_subsample_scripts(env='cov_est', varying_initial=False, overwrite=T
     command = ''
     for s in range(NUM_SELECTIONS):
         for n in range(NUM_TRIALS):
-            if (not overwrite) and test_subsample_for_single_simulation(s, n, varying_initial=varying_initial, recombination=recombination, r=r):
+            if (not overwrite) and test_subsample_for_single_simulation(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r):
                 continue
             command += f'sbatch -p {partition} {prefix}_s={s}_n={n}.sh\n'
     generate_shell_script(JOB_DIR, jobname, command, env=env)
 
 
-def generate_subsample_script_with_time_series_covariance(s=4, n=0, p=0, q=0, env='cov_est', varying_initial=False, overwrite=True, recombination=False, r=1e-5, partition='intel'):
+def generate_subsample_script_with_time_series_covariance(s=4, n=0, p=0, q=0, env='cov_est', varying_initial=False, varying_founder_genotype=False, overwrite=True, recombination=False, r=1e-5, partition='intel'):
 
     sample, record = SAMPLE[p], RECORD[q]
 
@@ -296,6 +320,9 @@ def generate_subsample_script_with_time_series_covariance(s=4, n=0, p=0, q=0, en
     elif varying_initial:
         prefix = f'subsample_covAtEachTime_vid'
         sim_prefix = f'simulation_vid'
+    elif varying_founder_genotype:
+        prefix = f'subsample_covAtEachTime_vfg'
+        sim_prefix = f'simulation_vfg'
     else:
         prefix = f'subsample_covAtEachTime'
         sim_prefix = f'simulation'
@@ -314,7 +341,7 @@ def generate_subsample_script_with_time_series_covariance(s=4, n=0, p=0, q=0, en
     generate_shell_script(JOB_DIR, jobname, command, hours=1, env=env)
 
 
-def generate_estimate_scripts(env='cov_est', truncate_list=TRUNCATE, window_list=WINDOW, complete_output=False, varying_initial=False, recombination=False, r=1e-5, partition='intel'):
+def generate_estimate_scripts(env='cov_est', truncate_list=TRUNCATE, window_list=WINDOW, complete_output=False, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5, partition='intel'):
     job_prefix = 'estimate'
     if complete_output:
         job_prefix += '_complete'
@@ -328,6 +355,11 @@ def generate_estimate_scripts(env='cov_est', truncate_list=TRUNCATE, window_list
         est_prefix = f'estimation_vid'
         sub_prefix = f'subsample_vid'
         sim_prefix = f'simulation_vid'
+    elif varying_founder_genotype:
+        job_prefix += f'_vfg'
+        est_prefix = f'estimation_vfg'
+        sub_prefix = f'subsample_vfg'
+        sim_prefix = f'simulation_vfg'
     else:
         est_prefix = f'estimation'
         sub_prefix = f'subsample'
@@ -362,12 +394,14 @@ def generate_estimate_scripts(env='cov_est', truncate_list=TRUNCATE, window_list
     generate_shell_script(JOB_DIR, jobname, command, env=env)
 
 
-def generate_evoracle_scripts(env='evoracle', varying_initial=False, recombination=False, r=0, save_geno_traj=False, partition='intel', overwrite=False):
+def generate_evoracle_scripts(env='evoracle', varying_initial=False, varying_founder_genotype=False, recombination=False, r=0, save_geno_traj=False, partition='intel', overwrite=False):
         job_prefix = 'evoracle'
         if recombination:
             job_prefix += f'_r={r}'
         elif varying_initial:
             job_prefix += f'_vid'
+        elif varying_founder_genotype:
+            job_prefix += f'_vfg'
         for s in range(NUM_SELECTIONS):
             for n in range(NUM_TRIALS):
                 jobname = f'{job_prefix}_s={s}_n={n}'
@@ -403,7 +437,7 @@ def generate_evoracle_scripts(env='evoracle', varying_initial=False, recombinati
         command = ''
         for s in range(NUM_SELECTIONS):
             for n in range(NUM_TRIALS):
-                if overwrite or not test_single_evoracle(s, n, varying_initial=varying_initial, recombination=recombination, r=r):
+                if overwrite or not test_single_evoracle(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r):
                     command += f'sbatch -p {partition} {job_prefix}_s={s}_n={n}.sh\n'
         generate_shell_script(JOB_DIR, jobname, command, env=env)
 
@@ -439,28 +473,38 @@ def load_initial(i):
     return np.load(INITIAL_DIR + f'/initial_{i}.npz')
 
 
+def load_initial_four_founder_genotypes(i):
+    """ Loads one of {NUM_TRIALS} initial distributions of genotypes with four founder genotypes. """
+
+    return np.load(INITIAL_DIR + f'/initial_four_{i}.npz')
+
+
 def load_default_initial():
     """ Loads the default initial distributions of four genotypes. """
 
     return np.load(INITIAL_DIR + f'/initial.npz')
 
 
-def load_simulation(s, n, directory=SIMULATION_OUTPUT_DIR, varying_initial=False, recombination=False, r=1e-5):
+def load_simulation(s, n, directory=SIMULATION_OUTPUT_DIR, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     if recombination:
         prefix = f'simulation_r={r}'
     elif varying_initial:
         prefix = f'simulation_vid'
+    elif varying_founder_genotype:
+        prefix = f'simulation_vfg'
     else:
         prefix = f'simulation'
     file = f'{directory}/{prefix}_output_s={s}_n={n}.npz'
     return np.load(file, allow_pickle=True)
 
 
-def load_subsample(s, n, sample, record, varying_initial=False, recombination=False, r=1e-5, covAtEachTime=False):
+def load_subsample(s, n, sample, record, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5, covAtEachTime=False):
     if recombination:
         prefix = f'subsample_r={r}'
     elif varying_initial:
         prefix = f'subsample_vid'
+    elif varying_founder_genotype:
+        prefix = f'subsample_vfg'
     elif covAtEachTime:
         prefix = f'subsample_covAtEachTime'
     else:
@@ -469,11 +513,13 @@ def load_subsample(s, n, sample, record, varying_initial=False, recombination=Fa
     return np.load(file, allow_pickle=True)
 
 
-def load_estimation(truncate, window, varying_initial=False, recombination=False, r=1e-5, complete=False):
+def load_estimation(truncate, window, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5, complete=False):
     if recombination:
         prefix = f'estimation_r={r}'
     elif varying_initial:
         prefix = f'estimation_vid'
+    elif varying_founder_genotype:
+        prefix = f'estimation_vfg'
     else:
         prefix = f'estimation'
 
@@ -482,18 +528,20 @@ def load_estimation(truncate, window, varying_initial=False, recombination=False
     return np.load(ESTIMATION_OUTPUT_DIR + f'/{prefix}_output_truncate={truncate}_window={window}{postfix}.npz')
 
 
-def load_evoracle(s, n, directory=EVORACLE_SIMULATION_PARSED_OUTPUT_DIR, varying_initial=False, recombination=False, r=1e-5):
+def load_evoracle(s, n, directory=EVORACLE_SIMULATION_PARSED_OUTPUT_DIR, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     if recombination:
         prefix = f'evoracle_r={r}'
     elif varying_initial:
         prefix = f'evoracle_vid'
+    elif varying_founder_genotype:
+        prefix = f'evoracle_vfg'
     else:
         prefix = f'evoracle'
     file = f'{directory}/{prefix}_parsed_output_s={s}_n={n}.npz'
     return np.load(file, allow_pickle=True)
 
 
-def load_traj_example(s, n, p=0, q=0, tr=5, varying_initial=False, recombination=False, r=1e-5):
+def load_traj_example(s, n, p=0, q=0, tr=5, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     """Loads allele frequency trajectories of one particular simulation.
 
     Args:
@@ -505,9 +553,9 @@ def load_traj_example(s, n, p=0, q=0, tr=5, varying_initial=False, recombination
     """
 
     if p == 0 and q == 0:
-        dic = load_simulation(s, n, varying_initial=varying_initial, recombination=recombination, r=r)
+        dic = load_simulation(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
     else:
-        dic = load_subsample(s, n, SAMPLE[p], RECORD[q], varying_initial=varying_initial, recombination=recombination, r=r)
+        dic = load_subsample(s, n, SAMPLE[p], RECORD[q], varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
     traj = dic['traj'][:TRUNCATE[tr] + 1]
     return traj
 
@@ -525,49 +573,49 @@ def load_cov_example(s=4, n=0, truncate=700, window=20, sample_selected=0, recor
         return dic['int_cov'][s, n, p, q], dic['int_dcov'][s, n, p, q], dic['int_dcov_uncalibrated'][s, n, p, q]
 
 
-def test_load_simulation(varying_initial=False, recombination=False, r=1e-5):
+def test_load_simulation(varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     for s in range(NUM_SELECTIONS):
         for n in range(NUM_TRIALS):
             try:
-                sim = load_simulation(s, n, varying_initial=varying_initial, recombination=recombination, r=r)
+                sim = load_simulation(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
                 traj, nVec, sVec, times, cov, mu = sim['traj'], sim['nVec'], sim['sVec'], sim['times'], sim['cov'], sim['mu']
             except:
                 print(s, n)
 
 
-def test_load_subsample(varying_initial=False, recombination=False, r=1e-5):
+def test_load_subsample(varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     for s in range(NUM_SELECTIONS):
         for n in range(NUM_TRIALS):
             try:
                 for sample in SAMPLE:
                     for record in RECORD:
-                        sub = load_subsample(s, n, sample, record, varying_initial=varying_initial, recombination=recombination, r=r)
+                        sub = load_subsample(s, n, sample, record, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
                         traj, times, cov, mu, intCovTimes, intCovAtTimes = sub['traj'], sub['times'], sub['cov'], sub['mu'], sub['intCovTimes'], sub['intCovAtTimes']
             except:
                 print(s, n)
 
 
-def test_load_estimation(varying_initial=False, recombination=False, r=1e-5):
+def test_load_estimation(varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     for truncate in TRUNCATE:
         for window in WINDOW:
             try:
-                est = load_estimation(truncate, window, varying_initial=varying_initial, recombination=recombination, r=r)
+                est = load_estimation(truncate, window, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
                 for key in list(est.keys()):
                     est[key]
             except:
                 print(truncate, window)
 
 
-def test_load_evoracle(varying_initial=False, recombination=False, r=1e-5):
+def test_load_evoracle(varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     for s in range(NUM_SELECTIONS):
         for n in range(NUM_TRIALS):
-            if not test_single_evoracle(s, n, varying_initial=varying_initial, recombination=recombination, r=r):
+            if not test_single_evoracle(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r):
                 print(s, n)
 
 
-def test_single_evoracle(s, n, varying_initial=False, recombination=False, r=1e-5):
+def test_single_evoracle(s, n, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     try:
-        res = load_evoracle(s, n, varying_initial=varying_initial, recombination=recombination, r=r)
+        res = load_evoracle(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
         for key in list(res.keys()):
             res[key]
         return True
@@ -575,20 +623,20 @@ def test_single_evoracle(s, n, varying_initial=False, recombination=False, r=1e-
         return False
 
 
-def test_single_simulation(s, n, varying_initial=False, recombination=False, r=1e-5):
+def test_single_simulation(s, n, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     try:
-        sim = load_simulation(s, n, varying_initial=varying_initial, recombination=recombination, r=r)
+        sim = load_simulation(s, n, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
         traj, nVec, sVec, times, cov, mu = sim['traj'], sim['nVec'], sim['sVec'], sim['times'], sim['cov'], sim['mu']
         return True
     except:
         return False
 
 
-def test_subsample_for_single_simulation(s, n, varying_initial=False, recombination=False, r=1e-5):
+def test_subsample_for_single_simulation(s, n, varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
     try:
         for sample in SAMPLE:
             for record in RECORD:
-                sub = load_subsample(s, n, sample, record, varying_initial=varying_initial, recombination=recombination, r=r)
+                sub = load_subsample(s, n, sample, record, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
                 traj, times, cov, mu, intCovTimes, intCovAtTimes = sub['traj'], sub['times'], sub['cov'], sub['mu'], sub['intCovTimes'], sub['intCovAtTimes']
         return True
     except:
@@ -599,6 +647,15 @@ def test_load_initial():
     for n in range(NUM_TRIALS):
         try:
             initial = load_initial(n)
+            assert np.sum(initial['counts']) == N
+        except:
+            print(n)
+
+
+def test_load_initial_four_founder_genotypes():
+    for n in range(NUM_TRIALS):
+        try:
+            initial = load_initial_four_founder_genotypes(n)
             assert np.sum(initial['counts']) == N
         except:
             print(n)
