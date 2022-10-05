@@ -212,8 +212,7 @@ def main(verbose=False):
                         int_cov[s, n, p, q] = dic['intCovAtTimes'][index]
                     elif 'nVec' in dic.keys() and 'sVec' in dic.keys():
                         print(str_case_info + str_no_precomputed_cov + f'Computing using nVec and sVec...')
-                        q = 2
-                        MPL.processStandard(dic['sVec'], [i / N for i in dic['nVec']], times, q, int_cov[s, n, p, q])
+                        MPL.processStandard(dic['sVec'], [i / N for i in dic['nVec']], times, 2, int_cov[s, n, p, q])
                     else:
                         print(str_case_info + str_no_precomputed_cov + f'sVec & nVec not found either; Cannot retrieve true integrated covariance!')
                         return

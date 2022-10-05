@@ -560,10 +560,10 @@ def load_traj_example(s, n, p=0, q=0, tr=5, varying_initial=False, varying_found
     return traj
 
 
-def load_cov_example(s=4, n=0, truncate=700, window=20, sample_selected=0, record_selected=0, recombination=False, r=1e-5):
+def load_cov_example(s=4, n=0, truncate=700, window=20, p=0, q=0, recombination=False, r=1e-5, complete=False):
     """Loads intgrated covariances with a certain data length and a certain window choice."""
 
-    dic = load_estimation(truncate, window, recombination=recombination, r=r)
+    dic = load_estimation(truncate, window, recombination=recombination, r=r, complete=complete)
 
     if dic['size'] == 'minimal':
         return dic['int_cov'][s], dic['int_dcov'][s], dic['int_dcov_uncalibrated'][s]

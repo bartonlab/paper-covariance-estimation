@@ -101,7 +101,7 @@ Cry1Ac_PARAMS = {
     'mutation_rate': 1e-8,  # Taking 1e-10 as the normal mutation rate of E. Coli, the mutation rate in Cry1Ac data is increased by 100-fold by PACE.
     'window': 7,
     'nonlinear_reg': True,
-    'linear_reg': 10,
+    'linear_reg': 8,
 }
 TadA_PARAMS = {
     'mean_read_depth': 110461,
@@ -335,9 +335,10 @@ def parse_obs_reads_df(file):
     return df
 
 
-def parse_evoracle_results(obs_reads_file, output_directory, params=SIMULATION_PARAMS, save_geno_traj=True, compute_genotype_fitness=False):
+def parse_evoracle_results(obs_reads_file, output_directory, params=SIMULATION_PARAMS, save_geno_traj=True, compute_genotype_fitness=False, linear_reg=None):
     mu = params['mutation_rate']
-    reg = params['linear_reg']
+    if linear_reg is None:
+        linear_reg = params['linear_reg']
     times = params['times']
 
     df_traj = pd.read_csv(f'{output_directory}/{obs_reads_file}')
@@ -354,8 +355,8 @@ def parse_evoracle_results(obs_reads_file, output_directory, params=SIMULATION_P
     int_cov = MPL.integrateCovarianceFromStableGenotypes(binary_genotypes, geno_traj, times)
     D = MPL.computeD(traj, times, mu)
     D_from_geno_traj = MPL.computeD(traj_from_geno_traj, times, mu)
-    selection = MPL.inferSelection(int_cov, D, reg * np.identity(L))
-    selection_from_geno_traj = MPL.inferSelection(int_cov, D_from_geno_traj, reg * np.identity(L))
+    selection = MPL.inferSelection(int_cov, D, linear_reg * np.identity(L))
+    selection_from_geno_traj = MPL.inferSelection(int_cov, D_from_geno_traj, linear_reg * np.identity(L))
 
     results = {
         'traj': traj,
@@ -722,7 +723,7 @@ def load_cov_one_for_each_selection(tr=5, n=0, window=20, sample_selected=0, rec
     elif dic['size'] == 'medium':
         return dic['int_cov'][:, n], dic['int_dcov'][:, n], dic['int_dcov_uncalibrated'][:, n]
     else: # dic['size'] == 'complete'
-        return dic['int_cov'][:, n, p, q], dic['int_dcov'][:, n, p, q], dic['int_dcov_uncalibrated'][:, n, p, q]
+        return dic['int_cov'][:, n, sample_selected, record_selected], dic['int_dcov'][:, n, sample_selected, record_selected], dic['int_dcov_uncalibrated'][:, n, sample_selected, record_selected]
 
 
 def load_cov_error_with_various_windows(tr=5, n=0, window_list=WINDOW, sample_selected=0, record_selected=0, metric_index=0):
@@ -916,6 +917,46 @@ def parse_performances_on_covariances_selections_all_methods(selections, covaria
     return MAE_cov, spearmanr_cov, MAE_selection, spearmanr_selection
 
 
+def parse_std_dxdx(varying_initial=False, varying_founder_genotype=False, recombination=False, r=1e-5):
+    shape = (NUM_SELECTIONS, NUM_TRIALS, len(SAMPLE), len(RECORD))
+    std_dx = np.zeros(shape)
+    std_dxdx_dia = np.zeros(shape)
+    std_dxdx_off = np.zeros(shape)
+    for s in range(NUM_SELECTIONS):
+        print(f's={s}', end=', ')
+        for n in range(NUM_TRIALS):
+            for p, sample in enumerate(SAMPLE):
+                for q, record in enumerate(RECORD):
+                    sub = SS.load_subsample(s, n, sample, record, varying_initial=varying_initial, varying_founder_genotype=varying_founder_genotype, recombination=recombination, r=r)
+                    traj, times, cov, mu, intCovTimes, intCovAtTimes = sub['traj'], sub['times'], sub['cov'], sub['mu'], sub['intCovTimes'], sub['intCovAtTimes']
+                    dx = EC.computeDx(traj)
+                    dxdx = EC.computeDxdx(dx)
+                    std_dx[s, n, p, q] = np.std(dx)
+                    T, L = dx.shape
+                    diagonal_dxdx = np.zeros((T, L))
+                    for t in range(T):
+                        for l in range(L):
+                            diagonal_dxdx[t, l] = dxdx[t, l, l]
+                    offdiagonal_dxdx = []
+                    for t in range(T):
+                        for l1 in range(L):
+                            for l2 in range(l1):
+                                offdiagonal_dxdx.append(dxdx[t, l1, l2])
+                    std_dxdx_dia[s, n, p, q] = np.std(diagonal_dxdx)
+                    std_dxdx_off[s, n, p, q] = np.std(offdiagonal_dxdx)
+
+    mean_std_dx = np.mean(std_dx, axis=(0, 1))
+    mean_std_dxdx_dia = np.mean(std_dxdx_dia, axis=(0, 1))
+    mean_std_dxdx_off = np.mean(std_dxdx_off, axis=(0, 1))
+
+    return mean_std_dx, mean_std_dxdx_dia, mean_std_dxdx_off
+
+
+
+
+
+
+
 ############################################
 #
 # Two datasets in Shen2021: Cry1Ac, TadA
@@ -979,10 +1020,10 @@ def run_evoracle_cry1ac(directory=f'{SHEN_DATA_DIR}/cry1ac_output', obsreads_fil
     evoracle.propose_gts_and_infer_fitness_and_frequencies(obs_reads_df, proposed_genotypes_output, directory)
 
 
-def parse_evoracle_results_cry1ac(directory=f'{SHEN_DATA_DIR}/cry1ac_output', obsreads_filename='cry1ac_1nt_obsreads.csv'):
+def parse_evoracle_results_cry1ac(directory=f'{SHEN_DATA_DIR}/cry1ac_output', obsreads_filename='cry1ac_1nt_obsreads.csv', linear_reg=None):
 
     data = parse_data_cry1ac()
-    results = parse_evoracle_results(obsreads_filename, directory, params=Cry1Ac_PARAMS, save_geno_traj=True, compute_genotype_fitness=True)
+    results = parse_evoracle_results(obsreads_filename, directory, params=Cry1Ac_PARAMS, save_geno_traj=True, compute_genotype_fitness=True, linear_reg=linear_reg)
 
     results['fitness'] = MPL.computeGenotypeFitnessFromSelection(data['binary_genotypes'], results['selection'])
     results['fitness_from_geno_traj'] = MPL.computeGenotypeFitnessFromSelection(data['binary_genotypes'], results['selection_from_geno_traj'])
@@ -1075,9 +1116,13 @@ def parse_data_tada(genotype_traj_file_prefix='tada_filt0.0pct_threshold5', pace
     return data
 
 
-def infer_genotype_fitness(data, params, calibrate_at_the_end=False, shrink_off_diagonal_terms=1, nonlinear_reg=None, correct_locus=[], verbose=True):
+def infer_genotype_fitness(data, params, calibrate_at_the_end=False, shrink_off_diagonal_terms=1, nonlinear_reg=None, linear_reg=None, linear_reg_for_est=None, correct_locus=[], verbose=True):
 
-    window, mu, linear_reg = params['window'], params['mutation_rate'], params['linear_reg']
+    window, mu = params['window'], params['mutation_rate']
+    if linear_reg is None:
+        linear_reg = params['linear_reg']
+    if linear_reg_for_est is None:
+        linear_reg_for_est = linear_reg
     if nonlinear_reg is None:
         nonlinear_reg = params['nonlinear_reg']
     traj, times, int_cov = data['traj'], data['times'], data['int_cov']
@@ -1106,7 +1151,7 @@ def infer_genotype_fitness(data, params, calibrate_at_the_end=False, shrink_off_
                 est_cov[i, l] = int_cov[i, l]
                 est_cov[l, i] = int_cov[l, i]
 
-    selection_by_est_cov = MPL.inferSelection(est_cov, D, linear_reg * np.identity(L))
+    selection_by_est_cov = MPL.inferSelection(est_cov, D, linear_reg_for_est * np.identity(L))
     fitness_by_est_cov = MPL.computeGenotypeFitnessFromSelection(genotypes, selection_by_est_cov)
 
     # print(L, int_cov.shape)

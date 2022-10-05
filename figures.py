@@ -471,7 +471,7 @@ def set_ticks_labels_axes(xlim=None, ylim=None, xticks=None, xticklabels=None, y
     plt.setp(ax.spines.values(), **DEF_AXPROPS)
 
 
-def plot_comparison(xs, ys, xlabel=None, ylabel=None, ylabelpad=None, use_pearsonr=False, annot=False, plot_cov=False, label=None, annot_texts=None, alpha=0.6, ylim=None, yticks=None, xticks=None, xticklabels=None, yticklabels=None, plot_title=True, title_pad=4):
+def plot_comparison(xs, ys, xlabel=None, ylabel=None, ylabelpad=None, use_pearsonr=False, use_MAE=False, annot=False, plot_cov=False, label=None, annot_texts=None, alpha=0.6, ylim=None, yticks=None, xticks=None, xticklabels=None, yticklabels=None, plot_title=True, title_pad=4):
     L = len(xs)
     if plot_cov:
         diagonal_xs, diagonal_ys = EC.get_diagonal_terms(xs), EC.get_diagonal_terms(ys)
@@ -513,8 +513,11 @@ def plot_comparison(xs, ys, xlabel=None, ylabel=None, ylabelpad=None, use_pearso
     elif plot_title:
         spearmanr_title = "Spearman's " + r'$\rho$' + ' = %.2f' % stats.spearmanr(xs, ys)[0]
         pearsonr_title = "Pearson's " + r'$r$' + ' = %.2f' % stats.pearsonr(xs, ys)[0]
+        MAE_title = "MAE = %.3f" % np.mean(np.absolute(np.array(xs) - np.array(ys)))
         if use_pearsonr:
             plt.title(f'{spearmanr_title}\n{pearsonr_title}', fontsize=SIZELABEL, pad=title_pad)
+        elif use_MAE:
+            plt.title(MAE_title, fontsize=SIZELABEL, pad=title_pad)
         else:
             plt.title(spearmanr_title, fontsize=SIZELABEL, pad=title_pad)
 
@@ -742,7 +745,7 @@ def plot_figure_traj_cov_example(traj, selection, true_cov, est_cov, alpha=0.85,
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_figure_traj_cov_example_2(traj, selection, true_cov, est_cov, alpha=0.85, xlim=XLIM_GENERATION, ylim=(-0.02, 1.12), matrix_labels=None, vpad=5, title_pad=3, cbar_ticks=None, rasterized=True, save_file=None):
+def plot_figure_traj_cov_example_2(traj, selection, true_cov, est_cov, times=np.arange(0, 701, 1), alpha=0.85, xlim=XLIM_GENERATION, ylim=(-0.02, 1.12), matrix_labels=None, vpad=5, title_pad=3, cbar_ticks=None, rasterized=True, save_file=None):
     w = SINGLE_COLUMN
     # goldh = w / GOLD_RATIO
     ratio = 1.2
@@ -817,9 +820,9 @@ def plot_figure_traj_cov_example_2(traj, selection, true_cov, est_cov, alpha=0.8
                 label = 'Neutral'
                 first_neu = False
         if label is not None:
-            plt.plot(range(len(traj)), traj[:, l], color=color, alpha=alpha, linewidth=SIZELINE, label=label, rasterized=rasterized)
+            plt.plot(times, traj[:, l], color=color, alpha=alpha, linewidth=SIZELINE, label=label, rasterized=rasterized)
         else:
-            plt.plot(range(len(traj)), traj[:, l], color=color, alpha=alpha, linewidth=SIZELINE, rasterized=rasterized)
+            plt.plot(times, traj[:, l], color=color, alpha=alpha, linewidth=SIZELINE, rasterized=rasterized)
 
     plt.ylabel("Mutant allele\nfrequency", fontsize=SIZELABEL)
     plt.xlabel("Generation", fontsize=SIZELABEL)
@@ -1741,7 +1744,7 @@ def plot_figure_performance_combining_different_numbers_of_replicates(performanc
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_figure_performance_real_data(data, selection_list, fitness_list, labels=None, ref_index=0, f_est=0.5, f_nonlinear=0.5, double_column=False, colors=COLORS_TAB, alpha=0.75, save_file=None):
+def plot_figure_performance_real_data(data, selection_list, fitness_list, labels=None, ref_index=0, f_est=0.5, f_nonlinear=0.5, double_column=False, colors=COLORS_TAB, alpha=0.75, plot_evoracle=True, plot_nonlinear=True, plot_title=False, use_pearsonr=False, use_MAE=True, title_pad=2, save_file=None):
 
     if labels is None:
         # labels = ['MPL', f'Est-norm, f={f_est}',  f'Nonlinear-norm, f={f_nonlinear}', 'SL', 'Evoracle']
@@ -1765,7 +1768,7 @@ def plot_figure_performance_real_data(data, selection_list, fitness_list, labels
         global_right = 0.995 if double_column else 0.94
 
         global_bottom = 0.08
-        ddy = 0.02  # hspace between perf subplots
+        ddy = 0.027 if plot_title else 0.02  # hspace between perf subplots
         dy = (perf_top - global_bottom - 2 * ddy) / 3  # height of each perf subplot
         wspace = (global_right - global_left - dy * h_w_ratio * 2) / (dy * h_w_ratio)
         # print(wspace)
@@ -1800,42 +1803,47 @@ def plot_figure_performance_real_data(data, selection_list, fitness_list, labels
 
     ax_index = 1
     min, max = 0, 0.04
-    ylim = (-0.007, 0.047)
-    xticks = np.linspace(0, 0.04, 3)
-    yticks = np.linspace(0, 0.04, 3)
+    ylim = (-0.008, 0.072)
+    xticks = np.linspace(0, 0.06, 4)
+    yticks = np.linspace(0, 0.06, 4)
     xticklabels = ['%.2f'%_ for _ in xticks]
     yticklabels = ['%.2f'%_ for _ in yticks]
     xlabel = 'Selection inferred with\ntrue covariance'
     # ylabels = ['', 'Selection inferred with\n' + LABEL_SHRINK, 'Selection inferred with\n' + LABEL_NONLINEAR_SHRINK, 'Selection inferred when\nignoring linkage', 'Selection inferred\nwith Evoracle']
-    ylabels = ['', 'Selection inferred\nwith ' + LABEL_EST, 'Selection inferred\nwith ' + LABEL_NONLINEAR, 'Selection inferred when\nignoring linkage', 'Selection inferred\nwith Evoracle']
+    label_reg = LABEL_NONLINEAR if plot_nonlinear else LABEL_LINEAR
+    if plot_evoracle:
+        ylabels = ['', 'Selection inferred\nwith Evoracle', 'Selection inferred\nwith ' + label_reg, 'Selection inferred when\nignoring linkage']
+    else:
+        ylabels = ['', 'Selection inferred\nwith ' + LABEL_EST, 'Selection inferred\nwith ' + label_reg, 'Selection inferred when\nignoring linkage']
     for i, selection in enumerate(selection_list):
         if i == ref_index:
             continue
         plt.sca(axes[ax_index])
         ax = plt.gca()
         at_bottom = (ax_index > (len(selection_list) - 2) * 2)
-        plot_comparison(selection_list[ref_index], selection, ylim=ylim, xticks=xticks, yticks=yticks, xticklabels=xticklabels if at_bottom else [], yticklabels=yticklabels, ylabel=ylabels[i], ylabelpad=ylabelpad if i < 3 else None, xlabel=xlabel if at_bottom else None, plot_title=False)
-        # plt.title(labels[i], fontsize=SIZELABEL)
+        plot_comparison(selection_list[ref_index], selection, ylim=ylim, xticks=xticks, yticks=yticks, xticklabels=xticklabels if at_bottom else [], yticklabels=yticklabels, ylabel=ylabels[i], ylabelpad=ylabelpad if i < 3 else None, xlabel=xlabel if at_bottom else None, use_pearsonr=use_pearsonr, use_MAE=use_MAE, plot_title=plot_title, title_pad=title_pad)
         ax_index += 2
         plt.text(x=sublabel_x, y=sublabel_y, s=SUBLABELS[ax_index//2], transform=ax.transAxes, **DEF_SUBLABELPROPS)
 
     ax_index = 2
     min, max = 1, 1.5
-    ylim = (0.95, 1.55)
-    xticks = np.linspace(1, 1.5, 3)
-    yticks = np.linspace(1, 1.5, 3)
+    ylim = (0.88, 1.72)
+    xticks = np.linspace(1, 1.6, 4)
+    yticks = np.linspace(1, 1.6, 4)
     xticklabels = ['%.2f'%_ for _ in xticks]
     yticklabels = ['%.2f'%_ for _ in yticks]
     xlabel = 'Fitness inferred with\ntrue covariance'
     # ylabels = ['', 'Fitness inferred with\n' + LABEL_SHRINK, 'Fitness inferred with\n' + LABEL_NONLINEAR_SHRINK, 'Fitness inferred when\nignoring linkage', 'Fitness inferred\nwith Evoracle']
-    ylabels = ['', 'Fitness inferred\nwith ' + LABEL_EST, 'Fitness inferred\nwith ' + LABEL_NONLINEAR, 'Fitness inferred when\nignoring linkage', 'Fitness inferred\nwith Evoracle']
+    if plot_evoracle:
+        ylabels = ['', 'Selection inferred\nwith Evoracle', 'Selection inferred\nwith ' + label_reg, 'Selection inferred when\nignoring linkage']
+    else:
+        ylabels = ['', 'Selection inferred\nwith ' + LABEL_EST, 'Selection inferred\nwith ' + label_reg, 'Selection inferred when\nignoring linkage']
     for i, fitness in enumerate(fitness_list):
         if i == ref_index:
             continue
         plt.sca(axes[ax_index])
         at_bottom = (ax_index > (len(selection_list) - 2) * 2)
-        plot_comparison(fitness_list[ref_index], fitness, ylim=ylim, xticks=xticks, yticks=yticks, xticklabels=xticklabels if at_bottom else [], yticklabels=yticklabels, ylabel=ylabels[i], ylabelpad=ylabelpad if i < 3 else None, xlabel=xlabel if at_bottom else None, plot_title=False)
-        # plt.title(labels[i], fontsize=SIZELABEL)
+        plot_comparison(fitness_list[ref_index], fitness, ylim=ylim, xticks=xticks, yticks=yticks, xticklabels=xticklabels if at_bottom else [], yticklabels=yticklabels, ylabel=ylabels[i], ylabelpad=ylabelpad if i < 3 else None, xlabel=xlabel if at_bottom else None, use_pearsonr=use_pearsonr, use_MAE=use_MAE, plot_title=plot_title, title_pad=title_pad)
         ax_index += 2
 
     plt.show()
@@ -2833,7 +2841,7 @@ def plot_additional_figure_dxdx_across_generations(dx_dx_across_gens_list, gens,
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_additional_figure_dxdx_across_generations_2(dx_dx_across_gens_list, taus, s=4, sample=1000, record=1, vmin=-0.00035, vmax=0.0002, alpha=0.3, bins=None, use_log_scale=True, rasterized=True, save_file=None):
+def plot_additional_figure_dxdx_across_generations_2(dx_dx_across_gens_list, taus, s=4, sample=1000, record=1, vmin=-0.00035, vmax=0.0002, alpha=0.3, use_log_scale=True, rasterized=True, save_file=None):
 
     # np.arange(-0.004, 0.004, 0.001)
 
@@ -2842,10 +2850,12 @@ def plot_additional_figure_dxdx_across_generations_2(dx_dx_across_gens_list, tau
     goldh = w / GOLD_RATIO
     fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
 
-    delta = r'$<\Delta x_i(t) \Delta x_j(t+\tau)>$' + ', ' + r'$t \in [10, 60]$'
+    delta = r'$\Delta x_i(t) \Delta x_j(t+\tau)$' + ', ' + r'$t \in [10, 60]$'
     tau_string = r'$\tau$'
     xlabel = f'{delta}'
     ylabel = 'Frequency'
+    bins = list(np.linspace(-0.004, 0.004, 20))
+    # bins = None
 
     for i, tau in enumerate(taus):
         data = []
@@ -2862,8 +2872,8 @@ def plot_additional_figure_dxdx_across_generations_2(dx_dx_across_gens_list, tau
     ax = plt.gca()
     ax.tick_params(**DEF_TICKPROPS)
     plt.setp(ax.spines.values(), **DEF_AXPROPS)
-    plt.xlabel(xlabel, fontsize=SIZELABEL * 1.5)
-    plt.ylabel(ylabel, fontsize=SIZELABEL * 1.5)
+    plt.xlabel(xlabel, fontsize=SIZELABEL)
+    plt.ylabel(ylabel, fontsize=SIZELABEL)
     plt.legend(fontsize=SIZELABEL)
     if use_log_scale:
         plt.yscale('log', nonposy='clip')
@@ -3315,7 +3325,7 @@ def plot_additional_figure_biplot(data1, data2, label1="", label2="", plot_only_
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
 
 
-def plot_additional_figure_performance_for_different_initial_distributions(performances, tr=5, sample_list=SAMPLE, record_list=RECORD, pq_list=[(0, 0), (0, 3), (4, 0), (4, 3)], linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, double_column=True, ylim=(0.65, 0.95), yticks=np.arange(0.7, 0.95, 0.1), save_file=None):
+def plot_additional_figure_performance_for_different_initial_distributions(performances, tr=5, sample_list=SAMPLE, record_list=RECORD, pq_list=[(0, 0), (0, 3), (4, 0), (4, 3)], linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, double_column=True, ylim=(0.775, 0.975), xlim=(4, 26), yticks=np.arange(0.8, 0.975, 0.05), save_file=None):
 
     w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
     goldh = w / GOLD_RATIO
@@ -3326,12 +3336,12 @@ def plot_additional_figure_performance_for_different_initial_distributions(perfo
 
     ys_lists = []
     for p, q in pq_list:
-        ys_list = [np.mean(spearmanr_basic[:, :, :, p, q, 0], axis=(0, 1)),
-              np.mean(spearmanr_basic[:, :, :, p, q, 1], axis=(0, 1)),
-              np.mean(spearmanr_basic[:, :, :, p, q, 2], axis=(0, 1)),
-              # np.mean(spearmanr_basic[:, :, :, p, q, 3], axis=(0, 1)),
-              np.mean(spearmanr_linear[:, :, :, p, q, linear_selected], axis=(0, 1)),
-              np.mean(spearmanr_dcorr[:, :, :, p, q, loss_selected, gamma_selected], axis=(0, 1)),]
+        ys_list = [np.mean(spearmanr_basic[tr, :, :, p, q, 0], axis=(0)),
+              np.mean(spearmanr_basic[tr, :, :, p, q, 1], axis=(0)),
+              np.mean(spearmanr_basic[tr, :, :, p, q, 2], axis=(0)),
+              # np.mean(spearmanr_basic[tr, :, :, p, q, 3], axis=(0)),
+              np.mean(spearmanr_linear[tr, :, :, p, q, linear_selected], axis=(0)),
+              np.mean(spearmanr_dcorr[tr, :, :, p, q, loss_selected, gamma_selected], axis=(0)),]
         ys_lists.append(ys_list)
 
     xs = np.arange(5, 25)
@@ -3339,10 +3349,10 @@ def plot_additional_figure_performance_for_different_initial_distributions(perfo
     labels = ['SL', 'MPL', 'est', 'linear', 'nonlinear']
     colors = COLORS_ALL_METHODS_NORM
     markers = MARKERS_ALL_METHODS_NORM
-    xlabel = 'Number of founder genotypes'
+    xlabel = 'Number of founder haplotypes'
     xticks = np.arange(5, 30, 5)
     ylabel = YLABEL_SPEARMANR
-    yticklabels = ['%.1f' % _ for _ in yticks]
+    yticklabels = ['%.2f' % _ for _ in yticks]
 
     for i, (ys_list, (p, q)) in enumerate(zip(ys_lists, pq_list)):
         plt.sca(axes[i//nCol, i%nCol])
@@ -3353,6 +3363,7 @@ def plot_additional_figure_performance_for_different_initial_distributions(perfo
             plt.scatter(xs, ys, color=color, label=label, marker=marker, s=SMALLSIZEDOT)
             plt.plot(xs, ys, color=color, linewidth=SIZELINE, linestyle='solid' if j != 3 else 'dashed')
             plt.ylim(ylim)
+            plt.xlim(xlim)
             if at_bottom:
                 plt.xlabel(xlabel, fontsize=SIZELABEL)
                 plt.xticks(ticks=xticks, labels=xticks)
@@ -3371,7 +3382,130 @@ def plot_additional_figure_performance_for_different_initial_distributions(perfo
         plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
         plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
 
+    # plt.subplots_adjust(left=0.076, bottom=0.067, right=0.99, top=)
     plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_performance_for_different_initial_distributions_3(performances, tr=5, sample_list=SAMPLE, record_list=RECORD, p=0, q=0, linear_selected=LINEAR_SELECTED, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, double_column=True, ylim=(0.795, 1.005), xlim=(4, 26), yticks=np.arange(0.8, 1.025, 0.05), save_file=None):
+
+    w = DOUBLE_COLUMN if double_column else SINGLE_COLUMN
+    goldh = w / GOLD_RATIO
+    nRow, nCol = 1, 1
+    fig, axes = plt.subplots(nRow, nCol, figsize=(w, goldh))
+
+    spearmanr_basic, spearmanr_linear, spearmanr_dcorr = performances['spearmanr_basic'], performances['spearmanr_linear'], performances['spearmanr_dcorr']
+
+    ys_list = [np.mean(spearmanr_basic[tr, :, :, p, q, 0], axis=(0)),
+          np.mean(spearmanr_basic[tr, :, :, p, q, 1], axis=(0)),
+          np.mean(spearmanr_basic[tr, :, :, p, q, 2], axis=(0)),
+          # np.mean(spearmanr_basic[tr, :, :, p, q, 3], axis=(0)),
+          np.mean(spearmanr_linear[tr, :, :, p, q, linear_selected], axis=(0)),
+          np.mean(spearmanr_dcorr[tr, :, :, p, q, loss_selected, gamma_selected], axis=(0)),]
+
+    xs = np.arange(5, 25)
+    # labels = ['SL', 'MPL', 'est', 'est_unnormalized', 'linear', 'nonlinear']
+    labels = ['SL', 'MPL', 'est', 'linear', 'nonlinear']
+    colors = COLORS_ALL_METHODS_NORM
+    markers = MARKERS_ALL_METHODS_NORM
+    xlabel = 'Number of founder haplotypes'
+    xticks = np.arange(5, 30, 5)
+    ylabel = YLABEL_SPEARMANR
+    yticklabels = ['%.2f' % _ for _ in yticks]
+
+    ax = plt.gca()
+    for j, (ys, label, color, marker) in enumerate(zip(ys_list, labels, colors, markers)):
+        plt.scatter(xs, ys, color=color, label=label, marker=marker, s=SMALLSIZEDOT)
+        plt.plot(xs, ys, color=color, linewidth=SIZELINE, linestyle='solid')
+        plt.ylim(ylim)
+        plt.xlim(xlim)
+        plt.xlabel(xlabel, fontsize=SIZELABEL)
+        plt.xticks(ticks=xticks, labels=xticks)
+        plt.ylabel(ylabel, fontsize=SIZELABEL)
+        plt.yticks(ticks=yticks, labels=yticklabels)
+
+    plt.legend(fontsize=SIZELEGEND)
+    ax.tick_params(**DEF_TICKPROPS)
+    plt.setp(ax.spines.values(), **DEF_AXPROPS)
+    # plt.text(**DEF_SUBLABELPOSITION_2x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+    # plt.title(f"sample={sample_list[p]}, interval={record_list[q]}", fontsize=SIZELABEL)
+
+    # plt.subplots_adjust(left=0.076, bottom=0.067, right=0.99, top=)
+    plt.subplots_adjust(**DEF_SUBPLOTS_ADJUST_2x2)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_performance_for_different_initial_distributions_2(performances, tr=5, save_file=None, ylim_spearmanr=(0.795, 1.005), yticks_spearmanr=np.arange(0.8, 1.025, 0.05), ylim_MAE=(0.0055, 0.0125), yticks_MAE=np.arange(0.006, 0.0125, 0.002), ylabelpad=2, linear_selected=LINEAR_SELECTED, gamma_selected=GAMMA_SELECTED, loss_selected=LOSS_SELECTED):
+    """Plots a figure comparing performances of the SL, MPL and est methods using complete data."""
+
+    spearmanr_basic, spearmanr_linear, spearmanr_dcorr = performances['spearmanr_basic'], performances['spearmanr_linear'], performances['spearmanr_dcorr']
+
+    error_basic, error_linear, error_dcorr = performances['error_basic'], performances['error_linear'], performances['error_dcorr']
+
+    w = DOUBLE_COLUMN
+    goldh = w / GOLD_RATIO
+    fig, axes = plt.subplots(2, 1, figsize=(w, goldh))
+
+    p, q = 0, 0  # ample data
+    xs = np.arange(5, 25)
+    ys_lists = [
+        [
+            np.mean(spearmanr_basic[tr, :, :, p, q, 0], axis=(0)),
+            np.mean(spearmanr_basic[tr, :, :, p, q, 1], axis=(0)),
+            np.mean(spearmanr_basic[tr, :, :, p, q, 2], axis=(0)),
+            np.mean(spearmanr_linear[tr, :, :, p, q, linear_selected], axis=(0)),
+            np.mean(spearmanr_dcorr[tr, :, :, p, q, gamma_selected, loss_selected], axis=(0)),
+        ],
+        [
+            np.mean(error_basic[tr, :, :, p, q, 0], axis=(0)),
+            np.mean(error_basic[tr, :, :, p, q, 1], axis=(0)),
+            np.mean(error_basic[tr, :, :, p, q, 2], axis=(0)),
+            np.mean(error_linear[tr, :, :, p, q, linear_selected], axis=(0)),
+            np.mean(error_dcorr[tr, :, :, p, q, gamma_selected, loss_selected], axis=(0)),
+        ],
+    ]
+    ylabels = [YLABEL_SPEARMANR, YLABEL_MAE]
+    legend_loc = [4, 1]
+    labels = ['SL', 'MPL', 'est', 'linear', 'nonlinear']
+    colors = COLORS_ALL_METHODS_NORM
+    markers = MARKERS_ALL_METHODS_NORM
+
+    for i, ys_list in enumerate(ys_lists):
+        plt.sca(axes[i])
+        ax = plt.gca()
+
+        for j, (ys, label, color, marker) in enumerate(zip(ys_list, labels, colors, markers)):
+            plot_scatter_and_line(xs, ys, color=color, s=SIZEDOT, label=label, edgecolors=EDGECOLORS, marker=marker, alpha=1, linewidth=SIZELINE)
+
+        # for j in range(num_basic_methods):
+        #     linestyle = 'solid' if j < 3 else 'dashed'
+        #     plt.scatter(truncate_list, data[:, j], color=COLOR_BASIC[j], label=LABEL_BASIC[j], marker=MARKER_BASIC[j], s=SMALLSIZEDOT)
+        #     plt.plot(truncate_list, data[:, j], color=COLOR_BASIC[j], linewidth=SIZELINE, linestyle=linestyle)
+
+        if i == 0:
+            plt.ylim(ylim_spearmanr)
+            ax.set_yticks(yticks_spearmanr)
+            # plt.legend(loc=legend_loc[i], frameon=False, fontsize=SIZELEGEND)
+            plt.ylabel(ylabels[i], fontsize=SIZELABEL, labelpad=ylabelpad)
+            ax.set_xticklabels([])
+        elif i == 1:
+            plt.ylim(ylim_MAE)
+            ax.set_yticks(yticks_MAE)
+            plt.legend(loc=4, frameon=False, fontsize=SIZELEGEND)
+            plt.ylabel(ylabels[i], fontsize=SIZELABEL, labelpad=ylabelpad)
+            ax.tick_params(axis='y', which='major', pad=1.5)
+        ax.tick_params(**DEF_TICKPROPS)
+        plt.setp(ax.spines.values(), **DEF_AXPROPS)
+        plt.text(x=-0.135, y=1.05, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    xlabel = "Number of founder haplotypes"
+    add_shared_label(fig, xlabel=xlabel, xlabelpad=-1)
+
+    plt.subplots_adjust(hspace=0.2)
     plt.show()
     if save_file:
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
@@ -3905,6 +4039,84 @@ def plot_supplementary_figure_std_cov_ratio_vs_limited_sampling(performances, tr
     plt.show()
     if save_file:
         fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_mean_std_dxdx(mean_std_dx, mean_std_dxdx_dia, mean_std_dx_dx_off, sample_list=SAMPLE, record_list=RECORD, vmin=None, vmax=None, save_file=None):
+
+    plot_data = [mean_std_dx, mean_std_dxdx_dia, mean_std_dx_dx_off, mean_std_dx_dx_off / mean_std_dxdx_dia]
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / 3.5
+    fig, axes = plt.subplots(1, len(plot_data), figsize=(w, goldh))
+
+    ylabel = 'Number of samples drawn\nat each generation'
+    xlabel = 'Time intervals between sampling ' + r'$\Delta g$' + ' (generation)'
+    titles = [r'Mean std. of $\Delta x$', r'Mean std. of $\Delta x_i \Delta x_i$', r'Mean std. of $\Delta x_i \Delta x_j, \: (i \neq j)$', 'ratio between C and B']
+
+    for i, data in enumerate(plot_data):
+        plt.sca(axes[i])
+        ax = plt.gca()
+        sns.heatmap(data, vmin=vmin, vmax=vmax, **DEF_HEATMAP_KWARGS_STD_COV_VAR_RATIO)
+
+        at_left = (i == 0)
+        plt.yticks(ticks=ticks_for_heatmap(len(sample_list)), labels=sample_list if at_left else [], rotation=0)
+        plt.xticks(ticks=ticks_for_heatmap(len(record_list)), labels=record_list)
+        plt.ylabel(ylabel if at_left else '', fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+        plt.title(titles[i], fontsize=SIZELABEL, pad=3)
+        plt.text(x=-0.13, y=1.13, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+        # plt.text(**DEF_SUBLABELPOSITION_1x2, s=SUBLABELS[i], transform=ax.transAxes, **DEF_SUBLABELPROPS)
+
+    add_shared_label(fig, xlabel=xlabel, xlabelpad=-1)
+    plt.subplots_adjust(top=0.86, bottom=0.17, left=0.08, right=0.98, wspace=0.2)
+    # plt.suptitle(f'Shrinking factor = %.1f' % SHRINKING_FACTORS[shrink_selected], fontsize=SIZESUBLABEL, y=1.1)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_dxdx_versus_interval(mean_std_dx, mean_std_dxdx_dia, mean_std_dx_dx_off, record_list=RECORD, save_file=None):
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / GOLD_RATIO
+    fig, axes = plt.subplots(1, 1, figsize=(w, goldh))
+    ax = plt.gca()
+
+    ys_list = [mean_std_dx[0], mean_std_dxdx_dia[0], mean_std_dx_dx_off[0]]
+    xs = record_list
+    colors = ['grey', 'red', 'blue']
+    labels = [r'Mean std. of $\Delta x$', r'Mean std. of $\Delta x_i \Delta x_i$', r'Mean std. of $\Delta x_i \Delta x_j, \: (i \neq j)$']
+    for i, (ys, color, label) in enumerate(zip(ys_list, colors, labels)):
+        plot_scatter_and_line(xs, ys, color=color, label=label)
+
+    plt.legend(fontsize=SIZELEGEND)
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
+
+def plot_additional_figure_covariance_comparison(cov1, cov2, titles, vmin=None, vmax=None, rasterized=True, save_file=None):
+
+    plot_data = [cov1, cov2, cov1 - cov2]
+
+    w = DOUBLE_COLUMN #SLIDE_WIDTH
+    goldh = w / 3.5
+    fig, axes = plt.subplots(1, len(plot_data), figsize=(w, goldh))
+    titles += ['difference']
+
+    for i, data in enumerate(plot_data):
+        plt.sca(axes[i])
+        ax = plt.gca()
+        sns.heatmap(data, center=0, vmin=vmin, vmax=vmax, cmap=sns.diverging_palette(120, 300, as_cmap=True), square=True, cbar=False, rasterized=rasterized)
+        plt.yticks(ticks=[], labels=[], fontsize=SIZELABEL)
+        plt.xticks(ticks=[], labels=[], fontsize=SIZELABEL)
+        ax.tick_params(**DEF_TICKPROPS_HEATMAP)
+        plt.title(titles[i], fontsize=SIZELABEL)
+
+    plt.show()
+    if save_file:
+        fig.savefig(save_file, facecolor=fig.get_facecolor(), **DEF_FIGPROPS)
+
 
 
 def plot_figure_optimal_shrink_factor_vs_std_cov_mean(performances, optimal_by_MAE=False, use_true_as_base=False, loss_selected=LOSS_SELECTED, gamma_selected=GAMMA_SELECTED, save_file=None, tr=5, p=0, q=0, alpha=0.5):
