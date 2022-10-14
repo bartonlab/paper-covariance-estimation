@@ -3,11 +3,13 @@
 This repository contains data and scripts for reproducing the results accompanying the manuscript
 
 ### Estimating linkage disequilibrium and selection from allele frequency trajectories
-Yunxiao Li<sup>1,</sup> and John P. Barton<sup>1,#</sup>
+Yunxiao Li<sup>1,</sup> and John P. Barton<sup>1,2,#</sup>
 
-<sup>1</sup> Department of Physics and Astronomy, University of California, Riverside
+<sup>1</sup> Department of Physics and Astronomy, University of California, Riverside, Riverside, CA 92521, USA.
 
-<sup>#</sup> correspondence to [john.barton@ucr.edu](mailto:john.barton@ucr.edu)
+<sup>2</sup> Department of Computational and Systems Biology, University of Pittsburgh School of Medicine, Pittsburgh, PA 15260, USA.
+
+<sup>#</sup> correspondence to 830 Murdoch Building, 3420 Forbes Ave, Pittsburgh, PA 15260, USA. Email: [jpbarton@pitt.edu](mailto:jpbarton@pitt.edu)
 
 # Contents
 
