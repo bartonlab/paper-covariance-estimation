@@ -40,6 +40,7 @@ backup_data_simulation_r=1e-6
 complete_estimation_output
 backup_figures_20220121
 backup_figures_20220808
+backup_figures_20221014
 
 jobs
 src/initial_backup

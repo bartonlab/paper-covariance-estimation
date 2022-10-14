@@ -2,7 +2,7 @@
 
 This repository contains data and scripts for reproducing the results accompanying the manuscript
 
-### Estimating genetic linkage and selection from allele frequency trajectories
+### Estimating linkage disequilibrium and selection from allele frequency trajectories
 Yunxiao Li<sup>1,</sup> and John P. Barton<sup>1,#</sup>
 
 <sup>1</sup> Department of Physics and Astronomy, University of California, Riverside
